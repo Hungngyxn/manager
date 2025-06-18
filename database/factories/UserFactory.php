@@ -38,8 +38,8 @@ class UserFactory extends Factory
         return $this->state(function($attributes) {
             return [
                 'name' => 'Administrator',
-                'email' => 'admin@gmail.com',
-                'password' => Hash::make('password'),
+                'email' => 'administrator',
+                'password' => Hash::make('123456'),
                 'role_id' => 1,
             ];
         });  

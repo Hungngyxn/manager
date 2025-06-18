@@ -1,9 +1,11 @@
 <?php
 
-use App\Http\Controllers\LogsController;
+use App\Http\Controllers\AdsFeeController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SellerHasShopController;
 use App\Http\Controllers\SkuController;
+use App\Http\Controllers\TeamsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfilesController;
@@ -28,19 +30,31 @@ Auth::routes([
     'reset' => false
 ]);
 
-Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-Route::get('/dashboard/top-sellers', [DashboardController::class, 'getTopSellers'])->name('dashboard.top_sellers');
 
-Route::middleware(['auth', 'check.access'])->group(function () {
+Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
+
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/top-sellers', [DashboardController::class, 'getTopSellers'])->name('dashboard.top_sellers');
+
+    Route::prefix('tiktok')->name('tiktok.')->group(function () {
+        Route::get('/connect', [SellerHasShopController::class, 'connectTikTok'])->name('connect');
+        Route::get('/shop/{id}/reconnect', [SellerHasShopController::class, 'reconnectTikTok'])->name('reconnect');
+        Route::get('/callback', [SellerHasShopController::class, 'tiktokCallback'])->name('callback');
+    });
+
     // Users
     Route::prefix('user')->name('user.')->group(function () {
         Route::get('/', [UsersController::class, 'index'])->name('index');
         Route::get('/create', [UsersController::class, 'create'])->name('create');
         Route::post('/', [UsersController::class, 'store'])->name('store');
+        Route::put('/user/{user}/update-team', [UsersController::class, 'updateTeam'])->name('updateTeam');
         Route::get('/{user}', [UsersController::class, 'show'])->name('show');
         Route::get('/{user}/edit', [UsersController::class, 'edit'])->name('edit');
         Route::put('/{user}', [UsersController::class, 'update'])->name('update');
         Route::delete('/{user}', [UsersController::class, 'destroy'])->name('destroy');
+        Route::patch('/user/{id}/activate', [UsersController::class, 'activate'])->name('activate');
+        Route::patch('/user/{id}/deactivate', [UsersController::class, 'deactivate'])->name('deactivate');
+
     });
 
     // Roles
@@ -68,8 +82,12 @@ Route::middleware(['auth', 'check.access'])->group(function () {
         Route::get('/create', [OrderController::class, 'create'])->name('create');
         Route::post('/', [OrderController::class, 'store'])->name('store');
         Route::post('/import', [OrderController::class, 'import'])->name('import');
+        Route::post('/import-fulfill-fee', [OrderController::class, 'importFulfillFee'])->name('import.fulfill_fee');
         Route::post('/export', [OrderController::class, 'export'])->name('export');
         Route::delete('/delete', [OrderController::class, 'delete'])->name('delete');
+
+        Route::get('/sync', [OrderController::class, 'sync'])->name('sync');
+
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
         Route::put('/{order}', [OrderController::class, 'update'])->name('update');
@@ -82,10 +100,11 @@ Route::middleware(['auth', 'check.access'])->group(function () {
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
         Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
+        Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
+        Route::get('/shop/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
-
     });
 
     // Sku
@@ -99,8 +118,19 @@ Route::middleware(['auth', 'check.access'])->group(function () {
         Route::delete('/{sku}', [SkuController::class, 'destroy'])->name('destroy');
     });
 
-    Route::prefix('logs')->name('logs.')->group(function () {
-        Route::get('/', [LogsController::class, 'index'])->name('index');
-        Route::get('/print', [LogsController::class, 'print'])->name('print');
+    //Team
+    Route::prefix('team')->name('team.')->group(function () {
+        Route::get('/', [TeamsController::class, 'index'])->name('index');
+        Route::get('/create', [TeamsController::class, 'create'])->name('create');
+        Route::post('/', [TeamsController::class, 'store'])->name('store');
     });
+
+    //Report
+    Route::prefix('report')->name('report.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+    });
+
+    Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');
+    Route::get('/ads-fee/fetch', [AdsFeeController::class, 'fetch'])->name('ads-fee.fetch');
 });

@@ -21,12 +21,12 @@
         </a>
     </li>
     <li>
-        <a class="nav-link" href="{{ route('logout') }}"
+        <a class="nav-link" href="{{ request()->isSecure() ? secure_url('logout') : route('logout') }}"
            onclick="confirmLogout(event)">
             {{ __('Logout') }}
         </a>
 
-        <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+        <form id="logout-form" action="{{ request()->isSecure() ? secure_url('logout') : route('logout') }}" method="POST" class="d-none">
             @csrf
         </form>
     </li>

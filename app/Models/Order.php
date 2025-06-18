@@ -18,10 +18,27 @@ class Order extends Model
         'total',
         'profit',
         'bonus',
+        'fulfill_fee',
+        'user_id'
     ];
 
     public function shop()
     {
-        return $this->belongsTo(SellerHasShop::class, 'shop_name', 'shop_name');
+        return $this->belongsTo(SellerHasShop::class, 'shop_cipher', 'shop_cipher');
+    }
+
+    public function seller()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function skuInfo()
+    {
+        return $this->belongsTo(Sku::class, 'sku', 'sku');
+    }
+
+    public function setSkuAttribute($value)
+    {
+        $this->attributes['sku'] = strtolower($value);
     }
 }

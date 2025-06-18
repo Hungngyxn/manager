@@ -15,6 +15,8 @@ class SellerHasShop extends Model
         'user_id',
         'shop_name',
         'shop_code',
+        'shop_cipher',
+        'bank',
     ];
 
     public function seller()
@@ -25,5 +27,10 @@ class SellerHasShop extends Model
     public function orders()
     {
         return $this->hasMany(Order::class, 'shop_name', 'shop_name');
+    }
+
+    public function token()
+    {
+        return $this->hasOne(TiktokToken::class, 'shop_name', 'shop_name');
     }
 }

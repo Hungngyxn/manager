@@ -17,7 +17,7 @@
                     {{-- Toolbar --}}
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            @if (Auth::user()->role->name !== 'User')
+                            @if (Auth::user()->role->name !== 'Seller')
                                 {{-- Add --}}
                                 <div class="btn-group">
                                     <button class="btn btn-outline-dark dropdown-toggle px-4 py-2" type="button"
@@ -31,8 +31,8 @@
                                             </a>
                                         </li>
                                         <li>
-                                            <form action="{{ route('sku.import') }}" method="POST" enctype="multipart/form-data"
-                                                class="dropdown-item p-0 m-0 border-0">
+                                            <form action="{{ route('sku.import') }}" method="POST"
+                                                enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0">
                                                 @csrf
                                                 <label class="dropdown-item d-block" style="cursor: pointer">
                                                     <i class="fas fa-file-excel me-1"></i> Import Excel
@@ -79,8 +79,8 @@
                                     <th>Mặt Hàng</th>
                                     <th>Base Cost</th>
                                     <th>Quantity</th>
-                                    <th>Bonus</th>
-                                    @if (Auth::user()->role->name !== 'User')
+                                    <th>Tier</th>
+                                    @if (Auth::user()->role->name !== 'Seller')
                                         <th>Actions</th>
                                     @endif
                                 </tr>
@@ -92,13 +92,15 @@
                                         <td>{{ $sku->name }}</td>
                                         <td>{{ number_format($sku->cost, 1) }}</td>
                                         <td>{{ number_format($sku->quantity) }}</td>
-                                        <td>{{ number_format($sku->bonus_percentage) }} %</td>
+                                        <td>{{ $sku->tier }} </td>
                                         @if (collect($accesses)->where('menu_id', 6)->first()->status == 2)
                                             <td>
-                                                <a href="{{ route('sku.edit', $sku->id) }}" class="btn btn-sm btn-outline-primary">
+                                                <a href="{{ route('sku.edit', $sku->id) }}"
+                                                    class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <form action="{{ route('sku.destroy', $sku->id) }}" method="POST" class="d-inline"
+                                                <form action="{{ route('sku.destroy', $sku->id) }}" method="POST"
+                                                    class="d-inline"
                                                     onsubmit="return confirm('Are you sure you want to delete this SKU?')">
                                                     @csrf
                                                     @method('DELETE')
@@ -111,22 +113,81 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="5" class="text-center">No SKUs found.</td>
+                                        <td colspan="6" class="text-center">No SKUs found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
 
-                    {{-- Pagination --}}
-                    <div class="d-flex justify-content-start">
-                        {{ $skus->appends(['search' => request('search')])->links() }}
+                    {{-- PerPage + Pagination --}}
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+                        <form method="GET" action="{{ route('sku.index') }}" class="d-flex align-items-center">
+                            <input type="hidden" name="search" value="{{ request('search') }}">
+                            <select name="perPage" class="form-select" onchange="this.form.submit()">
+                                @foreach ([10, 20, 50, 100] as $size)
+                                    <option value="{{ $size }}"
+                                        {{ request('perPage', 10) == $size ? 'selected' : '' }}>
+                                        {{ $size }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </form>
+
+                        <div>
+                            {{ $skus->appends(request()->only(['search', 'perPage']))->links() }}
+                        </div>
                     </div>
 
                 </div>
             </div>
         </div>
     </div>
+
+    @if (session('import_error') || session('import_status'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                @if (session('import_error'))
+                    const error = @json(session('import_error'));
+
+                    const modalTitle = 'Lỗi khi import SKU';
+                    const modalBody = `
+                    <p><strong>Lỗi:</strong> ${error.message}</p>
+                    <p><strong>File:</strong> ${error.file}</p>
+                    <p><strong>Dòng:</strong> ${error.line}</p>
+                `;
+                @elseif (session('import_status'))
+                    const modalTitle = 'Thông báo Import SKU';
+                    let rawHtml = `{!! session('import_status') !!}`;
+                    let modalBody = rawHtml.replace(/⚠️ Bỏ qua:/g,
+                        '<span style="color:#ff0404; font-weight:600;">⚠️ Bỏ qua:</span>');
+                @endif
+
+                const modalHtml = `
+                <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg"> <!-- modal rộng hơn -->
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="importModalLabel">${modalTitle}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                            </div>
+                            <div class="modal-body">${modalBody}</div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                var importModal = new bootstrap.Modal(document.getElementById('importModal'));
+                importModal.show();
+            });
+        </script>
+    @endif
+
 
     <script>
         function resetFilters() {

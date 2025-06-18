@@ -8,5 +8,17 @@ class Sku extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['sku','name', 'cost', 'quantity','bonus_percentage'];
+    protected $table = 'skus';
+
+    protected $fillable = ['sku', 'name', 'cost', 'quantity', 'tier'];
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class, 'sku', 'sku');
+    }
+
+    public function tierBonus()
+    {
+        return $this->belongsTo(Tier::class, 'tier', 'tier');
+    }
 }

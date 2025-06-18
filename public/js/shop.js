@@ -1,10 +1,13 @@
-function openEditModal(id, shopName, shopCode, sellerId) {
-
+function openEditModal(id, shopName, shopCode, sellerId, onHold, payout) {
+ 
     $('#editShopForm').attr('action', '/shop/' + id);
     $('#editShopId').val(id);
     $('#editShopName').val(shopName);
     $('#editShopCode').val(shopCode);
     $('#editSellerId').val(sellerId).trigger('change');
+    $('#editOnHold').val(onHold)
+    $("#editPayout").val(payout);
+    
     $('#editShopModal').modal('show');
 }
 
@@ -29,4 +32,11 @@ function resetFilters() {
         $(form.querySelector('select[name="user_id"]')).val('').trigger('change');
     }
     document.getElementById('btnsearch').click();
+}
+
+function handleImport(input) {
+    if (input.files.length > 0) {
+        document.getElementById("importSpinner").style.display = "block";
+        input.form.submit();
+    }
 }

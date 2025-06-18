@@ -27,9 +27,9 @@
                 </div>
 
                 <div class="mb-3">
-                    <label for="email" class="form-label fw-bold">Email</label>
-                    <input type="email" name="email" class="form-control @error('email') is-invalid @enderror"
-                        value="{{ old('email') }}" placeholder="Enter email address">
+                    <label for="email" class="form-label fw-bold">Username</label>
+                    <input name="email" class="form-control @error('email') is-invalid @enderror"
+                        value="{{ old('email') }}" placeholder="Enter username">
                 </div>
 
                 <div class="mb-3">
@@ -54,6 +54,18 @@
                                     {{ $role->name }}
                                 </option>
                             @endif
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="team_id" class="form-label fw-bold">Team</label>
+                    <select name="team_id" class="form-select @error('team_id') is-invalid @enderror">
+                        <option value="">-- Select Team --</option>
+                        @foreach($teams as $team)
+                                <option value="{{ $team->id }}" {{ old('team_id') == $team->id ? 'selected' : '' }}>
+                                    {{ $team->name }}
+                                </option>
                         @endforeach
                     </select>
                 </div>

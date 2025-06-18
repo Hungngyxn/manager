@@ -13,7 +13,7 @@ class CreateSkuTable extends Migration
             $table->decimal('cost', 15, 2)->default(0);
             $table->string('name')->nullable();
             $table->integer('quantity');
-            $table->decimal('bonus_percentage', 5, 2)->default(0);
+            $table->string('tier')->default(0);
             $table->timestamps();
         });
     }

@@ -34,8 +34,15 @@ class CheckAccess
             $name = "account";
         }else if ($name == "sku") {
             $name = "sku";
+        } else if ($name == "team") {
+            $name = "team";
+        } else if ($name == "report") {
+            $name = "report";
+        } else if ($name == "ads-fee") {
+            $name = "report";
+        } else if ($name == "tiktok") {
+            $name = "shop";
         }
-
         $menuId = Menu::whereName($name)->first()->id;
         $accessType = Access::where([
             ["menu_id",'=', $menuId],

@@ -22,6 +22,6 @@ class RoleSeeder extends Seeder
         Role::factory()->admin()->create();
 
         // Tạo role User
-        Role::factory()->user()->create();
+        Role::factory()->seller()->create();
     }
 }

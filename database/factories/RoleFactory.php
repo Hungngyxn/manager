@@ -36,10 +36,10 @@ class RoleFactory extends Factory
         });
     }
 
-    public function user() {
+    public function seller() {
         return $this->state(function($attributes) {
             return [
-                'name' => 'User'
+                'name' => 'Seller'
             ];
         });
     }

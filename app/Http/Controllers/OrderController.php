@@ -3,92 +3,150 @@
 namespace App\Http\Controllers;
 
 use App\Exports\OrdersExport;
+use App\Imports\OrderFulfillFeeImport;
+use App\Models\Log;
 use App\Models\Order;
 use App\Models\SellerHasShop;
 use App\Models\Sku;
+use App\Models\TiktokToken;
 use App\Models\User;
 use App\Services\OrderService;
+use App\Services\TikTokService;
 use DB;
-use Illuminate\Database\Eloquent\Factories\Sequence;
+use Http;
 use Illuminate\Http\Request;
 use App\Imports\OrderImport;
 use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
+	protected $tiktok;
+
+	public function __construct(TikTokService $tiktok)
+	{
+		$this->middleware('auth');
+		$this->tiktok = $tiktok;
+	}
+
+	public function sync()
+	{
+		DB::beginTransaction();
+
+		try {
+			$shops = SellerHasShop::with('seller', 'token')->get(); // đảm bảo có quan hệ
+
+			foreach ($shops as $shop) {
+				if (!$shop->user_id)
+					continue;
+
+				$token = TiktokToken::where('shop_name', $shop->shop_name)->first();
+				if (!$token || !$token->access_token || !$token->expires_at) {
+					continue;
+				}
+
+				$client = $this->tiktok->client();
+				$client->setAccessToken($token->access_token);
+				$client->setShopCipher($shop->shop_cipher);
+
+				$orders = $this->tiktok->fetchOrderList($client);
+				$this->tiktok->syncOrders($orders, $shop->shop_cipher);
+			}
+
+			DB::commit();
+			return redirect()->route('orders.index')->with('status', 'Đồng bộ đơn hàng thành công!');
+		} catch (\Exception $e) {
+			DB::rollBack();
+			return redirect()->route('orders.index')->with('error', 'Lỗi đồng bộ đơn hàng: ' . $e->getMessage());
+		}
+	}
+
 	public function index(Request $request)
 	{
-		$query = Order::query();
+		$perPage = $request->get('perPage', 10);
+		$query = Order::query()->with('skuInfo');
+
 		$user = auth()->user();
 		$role = $user->role->name;
+
 		$sellers = [];
 		$shopNames = [];
 
-		// Lọc theo vai trò
-		if ($role === 'User') {
-			$shopNames = $user->shops()->pluck('shop_name');
-			$query->whereIn('shop_name', $shopNames);
+		if ($role === 'Seller') {
+			$shopFromOrders = Order::where('user_id', $user->id)->pluck('shop_name');
+
+			$shopFromRelation = $user->shops()->pluck('shop_name');
+
+			$shopNames = $shopFromOrders
+				->merge($shopFromRelation)
+				->filter()
+				->unique()
+				->values();
+
+			$query->where('user_id', $user->id);
 		} else {
+			// Admin: hiển thị filter người bán và shop
 			$shopNames = SellerHasShop::pluck('shop_name')->unique();
 			$sellers = User::select('id', 'name')->distinct('name')->get();
 		}
 
-		// Lọc theo user_id → lấy shop_name của user đó
+		// Admin hoặc Manager được phép lọc thêm
 		if ($request->filled('user_id')) {
-			$shopByUser = SellerHasShop::where('user_id', $request->user_id)->pluck('shop_name');
-			$query->whereIn('shop_name', $shopByUser);
+			$query->where('user_id', $request->user_id);
 		}
 
-		// Lọc theo shop_name cụ thể
 		if ($request->filled('shop_name')) {
 			$query->where('shop_name', $request->shop_name);
 		}
 
-		// Lọc theo từ khóa
 		if ($search = $request->input('search')) {
 			$query->where(function ($q) use ($search) {
 				$q->where('sku', 'like', "%$search%")
-					->orWhere('extra_id', 'like', "%$search%");
+					->orWhere('extra_id', 'like', "%$search%")
+					->orWhere('order_id', 'like', "%$search%")
+					->orWhere('shop_name', 'like', "%$search%");
 			});
 		}
 
-		// Lọc theo ngày bắt đầu
+		if ($request->filled('missing_sku')) {
+			$query->whereDoesntHave('skuInfo');
+		}
+
 		if ($request->filled('date_start')) {
 			$query->whereDate('created_at', '>=', $request->date_start);
 		}
 
-		// Lọc theo ngày kết thúc
 		if ($request->filled('date_end')) {
 			$query->whereDate('created_at', '<=', $request->date_end);
 		}
 
-		// Thống kê tổng
 		$totalCost = $query->sum('cost');
 		$totalRevenue = $query->sum('total');
 		$totalProfit = $query->sum('profit');
-		$totalBonus = $query->sum('bonus');
+		$totalQuantity = $query->sum('quantity');
 		$orderCount = $query->count();
 
-		// Phân trang
-		$orders = $query->paginate(15)->appends($request->only([
-			'search',
-			'user_id',
-			'shop_name',
-			'date_start',
-			'date_end'
-		]));
+		$orders = $query->orderBy('created_at', 'desc')
+			->paginate($perPage)
+			->appends($request->only([
+				'search',
+				'user_id',
+				'shop_name',
+				'date_start',
+				'date_end'
+			]));
 
 		return view('pages.order.index', compact(
 			'orders',
-			'totalCost',
-			'totalRevenue',
-			'orderCount',
 			'sellers',
 			'shopNames',
+			'totalCost',
+			'totalRevenue',
 			'totalProfit',
-			'totalBonus'
+			'totalQuantity',
+			'orderCount'
 		));
 	}
+
 
 	public function create()
 	{
@@ -106,6 +164,7 @@ class OrderController extends Controller
 			'shop_name' => 'required|string|max:255',
 			'quantity' => 'required|numeric|min:0',
 			'total' => 'required|numeric|min:0',
+			'user_id' => 'required|exists:users,id',
 		]);
 
 		DB::beginTransaction();
@@ -129,8 +188,7 @@ class OrderController extends Controller
 			return redirect()->route('orders.index')->with('status', 'Order created successfully!');
 		} catch (\Exception $e) {
 			DB::rollBack();
-
-			return redirect()->back()->with('error', 'Lỗi khi tạo đơn hàng: ' . $e->getMessage());
+			return redirect()->back()->with('error', 'Lỗi khi tạo đơn hàng: ' . $validated['extra_id']);
 		}
 	}
 
@@ -142,18 +200,18 @@ class OrderController extends Controller
 	public function update(Request $request, Order $order)
 	{
 		$validated = $request->validate([
-			'extra_id'=> 'required|string|max:255',
+			'extra_id' => 'required|string|max:255',
 			'sku' => 'required|string|max:100',
 			'quantity' => 'required|numeric|min:0',
 			'total' => 'required|numeric|min:0',
+			'fulfill_fee' => 'numeric|min:0'
 		]);
 
 		DB::beginTransaction();
 
 		try {
 			$sku = Sku::where('sku', $validated['sku'])->firstOrFail();
-
-			$service = new OrderService($sku, $validated['quantity'], $validated['total']);
+			$service = new OrderService($sku, $validated['quantity'], $validated['total'], $validated['fulfill_fee']);
 			$calc = $service->calculate();
 
 			$order->sku = $validated['sku'];
@@ -166,12 +224,10 @@ class OrderController extends Controller
 			$order->save();
 
 			DB::commit();
-
-			return redirect()->back()->with('status', 'Order '.$validated['extra_id']. ' updated successfully!');
+			return redirect()->back()->with('status', 'Order ' . $validated['extra_id'] . ' updated successfully!');
 		} catch (\Exception $e) {
 			DB::rollBack();
-
-			return redirect()->back()->with('error', 'Lỗi khi cập nhật đơn hàng: ' . $e->getMessage());
+			return redirect()->back()->with('error', 'Lỗi khi cập nhật đơn hàng: ' . $validated['extra_id']);
 		}
 	}
 
@@ -181,12 +237,11 @@ class OrderController extends Controller
 
 		try {
 			$order->delete();
-			DB::commit();
 
-			return redirect()->back()->with('success', 'Đơn hàng đã được xóa.');
+			DB::commit();
+			return redirect()->back()->with('status', 'Đơn hàng đã được xóa.');
 		} catch (\Exception $e) {
 			DB::rollBack();
-
 			return redirect()->back()->with('error', 'Lỗi khi xóa đơn hàng: ' . $e->getMessage());
 		}
 	}
@@ -202,11 +257,11 @@ class OrderController extends Controller
 		try {
 			DB::beginTransaction();
 
-			// Xoá các đơn hàng theo danh sách ID
+			$orders = Order::whereIn('id', $orderIds)->get();
 			Order::whereIn('id', $orderIds)->delete();
 
 			DB::commit();
-			return redirect()->back()->with('success', 'Xóa đơn hàng thành công.');
+			return redirect()->route('orders.index')->with('status', 'Xóa đơn hàng thành công.');
 		} catch (\Exception $e) {
 			DB::rollBack();
 			return redirect()->back()->with('error', 'Đã xảy ra lỗi khi xóa: ' . $e->getMessage());
@@ -221,25 +276,36 @@ class OrderController extends Controller
 	public function import(Request $request)
 	{
 		$request->validate([
-			'file' => 'required|mimes:xlsx,xls'
+			'file' => 'required|array',
+			'file.*' => 'required|mimes:xlsx,xls'
 		]);
-		$orders = new OrderImport();
 
-		try {
-			Excel::import($orders, $request->file('file'));
+		$skippedCodes = [];
 
-			if (count($orders->skipped) > 0) {
-				return redirect()->route('orders.index')->with(
-					'error',
-					'Imported with some skipped codes: ' . implode(', ', $orders->skipped)
-				);
+		foreach ($request->file('file') as $uploadedFile) {
+			$orders = new OrderImport();
+
+			try {
+				Excel::import($orders, $uploadedFile);
+
+				if (!empty($orders->skipped)) {
+					$skippedCodes = array_merge($skippedCodes, $orders->skipped);
+				}
+			} catch (\Exception $e) {
+				return redirect()->route('orders.index')->with('error', $e->getMessage());
 			}
-
-			return redirect()->route('orders.index')->with('status', 'Imported successfully!');
-		} catch (\Exception $e) {
-			return redirect()->route('orders.index')->with('error', 'Có lỗi xảy ra, vui lòng kiểm tra lại file và thử lại.');
 		}
+
+		if (!empty($skippedCodes)) {
+			return redirect()->route('orders.index')->with(
+				'error',
+				'Imported with some skipped codes: ' . implode(', ', $skippedCodes)
+			);
+		}
+
+		return redirect()->route('orders.index')->with('status', 'All files imported successfully!');
 	}
+
 	public function export(Request $request)
 	{
 		$mode = $request->input('mode');
@@ -250,7 +316,6 @@ class OrderController extends Controller
 		} elseif ($mode === 'current' && is_array($ids)) {
 			$orders = Order::whereIn('id', $ids)->get();
 		} elseif (is_array($ids)) {
-			// Export selected
 			$orders = Order::whereIn('id', $ids)->get();
 		} else {
 			return back()->with('error', 'Không có dữ liệu để export.');
@@ -258,5 +323,27 @@ class OrderController extends Controller
 
 		return Excel::download(new OrdersExport($orders), 'orders-' . time() . '.xlsx');
 	}
-}
 
+	public function importFulfillFee(Request $request)
+	{
+		$request->validate([
+			'file' => 'required|file|mimes:xlsx,xls',
+		]);
+
+		try {
+			$import = new OrderFulfillFeeImport;
+			Excel::import($import, $request->file('file'));
+			
+			$skippedExtraIds = implode(', ', $import->skipped);
+
+			$message = '✅ Đã cập nhật Fulfill Fee cho <strong>' . count($import->updated) . '</strong> đơn hàng.<br>' .
+				'⚠️ Bỏ qua <strong>' . count($import->skipped) . '</strong> dòng: ' . e($skippedExtraIds);
+
+			return redirect()->route('orders.index')->with('status', $message);
+
+		} catch (\Exception $e) {
+			return redirect()->route('orders.index')->with('error', $e->getMessage());
+		}
+
+	}
+}

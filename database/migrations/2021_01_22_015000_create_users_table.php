@@ -14,9 +14,12 @@ class CreateUsersTable extends Migration
             $table->string('email')->unique();
             $table->string('password');
             $table->unsignedBigInteger('role_id')->nullable();
+            $table->unsignedBigInteger('team_id')->nullable();
+            $table->boolean('status')->default(true);
             $table->timestamps();
 
             $table->foreign('role_id')->references('id')->on('roles')->onDelete('set null');
+            $table->foreign('team_id')->references('id')->on('teams')->onDelete('set null');
         });
     }
 

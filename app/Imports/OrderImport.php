@@ -31,22 +31,34 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
             });
 
             foreach ($grouped as $key => $groupRows) {
-                [$extraId, $skuCode] = explode('___', $key);
                 $firstRow = $groupRows->first();
-                $shopName = $firstRow['warehouse_name'] ?? null;
+
+                if (!empty($firstRow['cancelation_return_type'])) {
+                    $this->skipped[] = ($firstRow['order_id'] ?? 'unknown') . ' - ' . ($firstRow['seller_sku'] ?? 'unknown') . ' (Canceled/Returned)';
+                    continue;
+                }
+
+                [$extraId, $skuCode] = explode('___', $key);
+                $shopName = trim($firstRow['warehouse_name']) ?? null;
+                $userId = SellerHasShop::where('shop_name', $shopName)->get()->first()->user_id ?? auth()->user()->id;
+
+                $sku = null;
+                $cost = 0;
+                $profit = 0;
+                $bonus = 0;
 
                 if (!$extraId || !$skuCode || !$shopName || Order::where('extra_id', $extraId)->where('sku', $skuCode)->exists()) {
                     $this->skipped[] = $extraId . ' - ' . $skuCode;
                     continue;
                 }
 
-                // Tổng quantity và total
                 $quantity = $groupRows->sum(function ($row) {
                     return (int) ($row['quantity'] ?? 1);
                 });
 
                 $total = $groupRows->sum(function ($row) {
-                    return floatval($row['order_amount'] ?? 0);
+                    $calTotal = floatval($row['sku_subtotal_before_discount'] - $row['sku_seller_discount'] - $row['shipping_fee_seller_discount']);
+                    return $calTotal;
                 });
 
                 $sku = Sku::where('sku', $skuCode)->first();
@@ -72,6 +84,7 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     'profit' => $profit ?? 0,
                     'bonus' => $bonus ?? 0,
                     'total' => $total,
+                    'user_id' => $userId ?? 0,
                 ]);
             }
 

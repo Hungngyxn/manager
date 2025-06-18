@@ -18,7 +18,7 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $isUserRole = $user->role->name === 'User';
+        $isUserRole = $user->role->name === 'Seller';
 
         $defaultStartDate = now()->subDays(7)->startOfDay();
         $defaultEndDate = now()->endOfDay();
@@ -128,7 +128,7 @@ class DashboardController extends Controller
 
         return DB::table('orders')
             ->join('seller_has_shop', 'orders.shop_name', '=', 'seller_has_shop.shop_name')
-            ->join('users', 'seller_has_shop.user_id', '=', 'users.id')
+            ->join('users', 'orders.user_id', '=', 'users.id')
             ->whereBetween('orders.created_at', [
                 Carbon::parse($from)->startOfDay(),
                 Carbon::parse($to)->endOfDay()
@@ -152,7 +152,7 @@ class DashboardController extends Controller
 
         $topSellers = DB::table('orders')
             ->join('seller_has_shop', 'orders.shop_name', '=', 'seller_has_shop.shop_name')
-            ->join('users', 'seller_has_shop.user_id', '=', 'users.id')
+            ->join('users', 'orders.user_id', '=', 'users.id')
             ->whereBetween('orders.created_at', [$from, $to])
             ->select(
                 'users.name as seller_name',

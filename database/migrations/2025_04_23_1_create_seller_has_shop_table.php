@@ -6,21 +6,32 @@ use Illuminate\Support\Facades\Schema;
 
 class CreateSellerHasShopTable extends Migration
 {
-    public function up()
+    public function up(): void
     {
         Schema::create('seller_has_shop', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('shop_name')->unique();
+            $table->unsignedBigInteger('user_id');
+
+            // Thông tin shop
             $table->string('shop_code')->unique();
-            $table->integer('bank');
-            $table->decimal('on_hold', 10, 2);
-            $table->decimal('payout', 10, 2);
+            $table->string('shop_cipher')->unique();
+            $table->string('shop_name');
+            $table->string('bank')->nullable();
+            $table->decimal('onhold', 10, 2)->default(0);
+            $table->decimal('payout', 10, 2)->default(0);
+
+            // Thời gian gán seller
+            $table->timestamp('assigned_at')->nullable();
+            $table->timestamp('unassigned_at')->nullable();
+
             $table->timestamps();
+
+            // Ràng buộc khóa ngoại
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::dropIfExists('seller_has_shop');
     }

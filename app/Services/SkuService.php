@@ -7,17 +7,25 @@ use App\Models\Sku;
 
 class SkuService
 {
-    /**
-     * Cập nhật đơn hàng theo SKU.
-     */
-    public function updateOrdersBySku(Sku $sku): void
+    public function updateOrdersBySku(Sku $sku, string $scope = 'all'): void
     {
-        $orders = Order::where('sku', $sku->sku)->get();
+        $query = Order::where('sku', $sku->sku);
+
+        if ($scope === 'after_update') {
+            $query->where('created_at', '>=', $sku->updated_at);
+        }
+
+        $orders = $query->get();
+        $bonus_pct = $sku->tierBonus->bonus ?? 0;
 
         foreach ($orders as $order) {
-            $order->cost = $sku->cost * $order->quantity;
-            $order->profit = $order->total - $order->cost;
-            $order->bonus = $order->profit * ($sku->bonus_percentage / 100);
+            $cost = $sku->cost * $order->quantity;
+            $profit = $order->total - $cost - $order->fulfill_fee;
+            $bonus = $profit * ($bonus_pct / 100);
+
+            $order->cost = round($cost, 2);
+            $order->profit = round($profit, 2);
+            $order->bonus = round($bonus, 2);
             $order->save();
         }
     }

@@ -17,14 +17,16 @@
                         {{-- Seller select --}}
                         <div class="mb-3">
                             <label for="seller_id" class="form-label fw-bold">Select Seller</label>
-                            @if (Auth::user()->role->name === 'User')
-                                <input type="text" name="seller_id" id="seller_id" class="form-control"
-                                    value="{{ auth()->user()->name }}" readonly>
+                            @if (auth()->user()->role->name === 'Seller')
+                                <input type="hidden" name="seller_id" value="{{ auth()->user()->id }}">
+                                <input type="text" class="form-control" value="{{ auth()->user()->name }}" readonly
+                                    disabled>
                             @else
                                 <select name="seller_id" id="seller_id" class="form-select select2" required>
                                     <option value="">-- Select Seller --</option>
                                     @foreach ($sellers as $seller)
-                                        <option value="{{ $seller->id }}">{{ $seller->name }} ({{ $seller->email }})</option>
+                                        <option value="{{ $seller->id }}">{{ $seller->name }} ({{ $seller->email }})
+                                        </option>
                                     @endforeach
                                 </select>
                             @endif
@@ -48,7 +50,7 @@
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-plus"></i> Add Shop
                             </button>
-                            <a href="{{ route('orders.index') }}" class="btn btn-secondary">Cancel</a>
+                            <a href="{{ route('shop.index') }}" class="btn btn-secondary">Cancel</a>
                         </div>
 
                     </form>
@@ -59,6 +61,6 @@
 
     {{-- Script --}}
     @push('scripts')
-    <script src="{{ asset('js/order.js') }}"></script>
-@endpush
+        <script src="{{ asset('js/order.js') }}"></script>
+    @endpush
 @endsection

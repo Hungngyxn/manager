@@ -41,7 +41,7 @@ class LoginController extends Controller
         $this->middleware('guest')->except('logout');
     }
 
-        /**
+    /**
      * Validate the user login request.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -52,10 +52,50 @@ class LoginController extends Controller
 
     protected function validateLogin(Request $request)
     {
-        $user = User::where('email',$request->email)->first();
+        $user = User::where('email', $request->email)->first();
         $request->validate([
             $this->username() => 'required|string',
             'password' => 'required|string',
         ]);
     }
+
+    protected function credentials(Request $request)
+    {
+        return [
+            'email' => $request->email,
+            'password' => $request->password,
+            'status' => true
+        ];
+    }
+
+    protected function attemptLogin(Request $request)
+    {
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        if ($user && !$user->status) {
+            // Người dùng bị deactivate
+            return false;
+        }
+
+        return $this->guard()->attempt(
+            $this->credentials($request),
+            $request->boolean('remember')
+        );
+    }
+
+    protected function sendFailedLoginResponse(Request $request)
+    {
+        $user = User::where('email', $request->email)->first();
+
+        if ($user && !$user->status) {
+            throw ValidationException::withMessages([
+                'email' => [__('Tài khoản của bạn đã bị vô hiệu hóa.')],
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            $this->username() => [trans('auth.failed')],
+        ]);
+    }
+
 }

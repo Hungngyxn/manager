@@ -65,10 +65,10 @@
 
                     {{-- Chart --}}
                     <canvas id="orderChart" height="500"></canvas>
-                
+
                     {{-- Summary Cards --}}
                     <div class="row mb-4 justify-content-center">
-                        @if(Auth::user()->role->name !== 'User')
+                        @if (Auth::user()->role->name !== 'Seller')
                             <div class="col-md-3 col-sm-6 mb-3">
                                 <div class="card shadow-sm border-start-primary p-3">
                                     <h6 class="text-primary fw-bold">Total Sellers</h6>
@@ -122,7 +122,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($topSellers as $index => $seller)
+                    @foreach ($topSellers as $index => $seller)
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>{{ $seller->seller_name }}</td>
@@ -158,7 +158,7 @@
                                         <td>{{ $shop->total_orders }}</td>
                                     </tr>
                                 @endforeach
-                                @if($topShops->isEmpty())
+                                @if ($topShops->isEmpty())
                                     <tr>
                                         <td colspan="3" class="text-center">No data available</td>
                                     </tr>
@@ -175,7 +175,7 @@
     {{-- JS Scripts --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
             const ctx = document.getElementById('orderChart').getContext('2d');
             new Chart(ctx, {
                 type: 'line',
@@ -192,8 +192,16 @@
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
                 }
             });
 
@@ -207,7 +215,7 @@
                     "{{ $startDate }}",
                     "{{ $endDate }}"
                 ],
-                onClose: function (selectedDates, dateStr, instance) {
+                onClose: function(selectedDates, dateStr, instance) {
                     if (selectedDates.length === 2) {
                         instance.input.form.submit();
                     }
@@ -218,7 +226,7 @@
     </script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
             flatpickr("#top_seller_range", {
                 mode: "range",
                 dateFormat: "Y-m-d",
@@ -228,10 +236,11 @@
                 defaultDate: ["{{ $from }}", "{{ $to }}"],
             });
 
-            document.getElementById('top-seller-filter').addEventListener('submit', function (e) {
+            document.getElementById('top-seller-filter').addEventListener('submit', function(e) {
                 e.preventDefault();
                 const range = document.getElementById('top_seller_range').value;
-                const [from, to] = range.split(' to ');
+                let [from, to] = range.split(' to ');
+                if (!to) to = from; // fallback nếu người dùng chỉ chọn 1 ngày
 
                 fetch(`/dashboard/top-sellers?from=${from}&to=${to}`)
                     .then(response => response.json())
@@ -244,18 +253,19 @@
                         } else {
                             data.forEach((seller, index) => {
                                 const row = `<tr>
-                                                                    <td>${index + 1}</td>
-                                                                    <td>${seller.seller_name}</td>
-                                                                    <td>${parseFloat(seller.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                                    <td>${parseFloat(seller.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                                    <td>${parseFloat(seller.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                                </tr>`;
+                                    <td>${index + 1}</td>
+                                    <td>${seller.seller_name}</td>
+                                    <td>${parseFloat(seller.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td>${parseFloat(seller.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td>${parseFloat(seller.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>`;
                                 tbody.insertAdjacentHTML('beforeend', row);
                             });
                         }
                     })
                     .catch(error => console.error('Error fetching top sellers:', error));
             });
+
         });
     </script>
 

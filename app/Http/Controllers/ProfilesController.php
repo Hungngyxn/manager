@@ -25,7 +25,8 @@ class ProfilesController extends Controller
      */
     public function index()
     {
-        $profile = auth()->user()->load('role');
+        $profile = auth()->user()->load('role', 'team');
+        
         return view('pages.profile', compact('profile'));
     }
 

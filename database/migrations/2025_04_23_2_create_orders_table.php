@@ -11,13 +11,17 @@ class CreateOrdersTable extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->string('extra_id');
+            $table->string('order_id');
             $table->string('sku');
             $table->string('shop_name');
-            $table->integer('quantity')->default(1)->after('sku');
+            $table->string('user_id');
+            $table->string('shop_cipher');
+            $table->integer('quantity');
             $table->decimal('cost', 10, 2);
             $table->decimal('total', 10, 2);
             $table->decimal('profit', 10, 2);
             $table->decimal('bonus', 10, 2);
+            $table->string('status');
             $table->timestamps();
         });
     }

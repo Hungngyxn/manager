@@ -21,6 +21,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role_id',
+        'team_id',
+        'status',
     ];
 
     /**
@@ -38,19 +40,20 @@ class User extends Authenticatable
      * @var array
      */
     protected $casts = [
+        'status' => 'boolean',
     ];
 
-    public function role() 
+    public function role()
     {
         return $this->belongsTo(Role::class);
     }
 
-    public function paginate($count = 10) 
+    public function paginate($count = 10)
     {
         return $this->with('role')->latest()->paginate($count);
     }
 
-    public function isAdmin() 
+    public function isAdmin()
     {
         return $this->role->isAdmin();
     }
@@ -58,6 +61,11 @@ class User extends Authenticatable
     public function shops()
     {
         return $this->hasMany(SellerHasShop::class, 'user_id');
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(Team::class);
     }
 
     protected static function booted()

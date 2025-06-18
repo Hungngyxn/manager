@@ -1,57 +1,98 @@
 @extends('layouts.admin', ['active' => 'sku'])
 
 @section('_content')
-<div class="container mt-4">
-    <h3>Edit SKU</h3>
+    <div class="container mt-4">
+        <h3>Edit SKU</h3>
 
-    <form action="{{ route('sku.update', $sku->id) }}" method="POST" class="card p-4 shadow-sm">
-        @csrf
-        @method('PUT')
+        <form action="{{ route('sku.update', $sku->id) }}" method="POST" class="card p-4 shadow-sm">
+            @csrf
+            @method('PUT')
 
-        <div class="mb-3">
-            <label class="form-label fw-bold">SKU</label>
-            <input type="text" name="sku" class="form-control @error('sku') is-invalid @enderror"
-                   value="{{ old('sku', $sku->sku) }}" required>
+            <div class="mb-3">
+                <label class="form-label fw-bold">SKU</label>
+                <input type="text" name="sku" class="form-control @error('sku') is-invalid @enderror"
+                    value="{{ old('sku', $sku->sku) }}" required>
+                @error('sku')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
 
-            @error('sku')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Name</label>
+                <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
+                    value="{{ old('name', $sku->name) }}" required>
+                @error('name')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label fw-bold">Cost</label>
-            <input name="cost" class="form-control @error('cost') is-invalid @enderror"
-                   value="{{ old('cost', $sku->cost) }}" required>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Cost</label>
+                <input name="cost" class="form-control @error('cost') is-invalid @enderror"
+                    value="{{ old('cost', $sku->cost) }}" required>
+                @error('cost')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
 
-            @error('cost')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Quantity</label>
+                <input name="quantity" class="form-control @error('quantity') is-invalid @enderror"
+                    value="{{ old('quantity', $sku->quantity) }}" required>
+                @error('quantity')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
 
-        <div class="mb-3">
-            <label class="form-label fw-bold">Quantity</label>
-            <input name="quantity" class="form-control @error('quantity') is-invalid @enderror"
-                   value="{{ old('quantity', $sku->quantity) }}" required>
+            {{-- 🔁 Thay Bonus Percentage bằng Tier Name --}}
+            <div class="mb-3">
+                <label class="form-label fw-bold">Tier</label>
+                <select name="tier" class="form-select select2 @error('tier') is-invalid @enderror" required>
+                    <option value="">-- Select Tier --</option>
+                    @foreach ($tiers as $tier)
+                        <option value="{{ $tier->tier }}"
+                            {{ old('tier', $sku->tier) == $tier->tier ? 'selected' : '' }}>
+                            {{ $tier->tier }} ({{ $tier->bonus }}%)
+                        </option>
+                    @endforeach
+                </select>
+                @error('tier')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
 
-            @error('quantity')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
+            {{-- Cập nhật đơn hàng --}}
+            <div class="mb-3">
+                <label class="form-label fw-bold">Cập nhật đơn hàng liên quan</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="update_scope" id="update_all" value="all"
+                        {{ old('update_scope') === 'after_update' ? '' : 'checked' }}>
+                    <label class="form-check-label" for="update_all">
+                        Tất cả đơn hàng có mã SKU này
+                    </label>
+                </div>
 
-        <div class="mb-3">
-            <label class="form-label fw-bold">Bonus</label>
-            <input name="bonus_percentage" class="form-control @error('bonus_percentage') is-invalid @enderror"
-                   value="{{ old('bonus_percentage', $sku->bonus_percentage) }}" required>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="update_scope" id="update_after"
+                        value="after_update" {{ old('update_scope') === 'after_update' ? 'checked' : '' }}>
+                    <label class="form-check-label" for="update_after">
+                        Chỉ đơn hàng được tạo sau khi cập nhật SKU
+                    </label>
+                </div>
+            </div>
 
-            @error('bonus_percentage')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
-
-        <div class="d-flex justify-content-end">
-            <button type="submit" class="btn btn-primary me-2">Save Changes</button>
-            <a href="{{ route('sku.index') }}" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
-</div>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary me-2">Save Changes</button>
+                <a href="{{ route('sku.index') }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
 @endsection
+
+@push('scripts')
+    <script>
+        $(document).ready(function() {
+            $('.select2').select2();
+        });
+    </script>
+@endpush
