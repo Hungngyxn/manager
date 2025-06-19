@@ -17,17 +17,14 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $isUserRole = $user->role->name === 'Seller';
-
         $defaultStartDate = now()->subDays(7)->startOfDay();
         $defaultEndDate = now()->endOfDay();
-
         $startDate = $defaultStartDate;
         $endDate = $defaultEndDate;
 
         if ($request->filled('date_range')) {
             $dateRange = explode(' to ', $request->input('date_range'));
+
             if (count($dateRange) === 2) {
                 $startDate = Carbon::parse($dateRange[0])->startOfDay();
                 $endDate = Carbon::parse($dateRange[1])->endOfDay();
@@ -36,17 +33,7 @@ class DashboardController extends Controller
 
         $from = $request->input('from') ? Carbon::parse($request->input('from'))->startOfDay() : $defaultStartDate;
         $to = $request->input('to') ? Carbon::parse($request->input('to'))->endOfDay() : $defaultEndDate;
-
         $ordersQuery = Order::whereBetween('created_at', [$startDate, $endDate]);
-
-        if ($isUserRole) {
-            $ordersQuery->whereIn('shop_name', function ($query) use ($user) {
-                $query->select('shop_name')
-                    ->from('seller_has_shop')
-                    ->where('user_id', $user->id);
-            });
-        }
-
         $totalOrders = $ordersQuery->count();
         $totalRevenue = $ordersQuery->sum('total');
         $totalCost = $ordersQuery->sum('cost');
@@ -60,35 +47,26 @@ class DashboardController extends Controller
         $chartLabels = $ordersPerDay->pluck('date')->toArray();
         $chartData = $ordersPerDay->pluck('count')->toArray();
 
-        $shopNames = $isUserRole
-            ? DB::table('seller_has_shop')->where('user_id', $user->id)->pluck('shop_name')
-            : null;
-
-        $filterByShops = fn($query) => $isUserRole
-            ? $query->whereIn('shop_name', $shopNames)
-            : $query;
-
+        // Thống kê theo ngày, tuần, tháng
         $yesterday = Carbon::yesterday();
-        $yesterdayOrders = $filterByShops(Order::whereDate('created_at', $yesterday))->count();
-        $yesterdayRevenue = $filterByShops(Order::whereDate('created_at', $yesterday))->sum('total');
-        $yesterdayCost = $filterByShops(Order::whereDate('created_at', $yesterday))->sum('cost');
+        $yesterdayOrders = Order::whereDate('created_at', $yesterday)->count();
+        $yesterdayRevenue = Order::whereDate('created_at', $yesterday)->sum('total');
+        $yesterdayCost = Order::whereDate('created_at', $yesterday)->sum('cost');
 
         $startOfWeek = Carbon::now()->startOfWeek();
-        $thisWeekOrders = $filterByShops(Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()]))->count();
-        $thisWeekRevenue = $filterByShops(Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()]))->sum('total');
-        $thisWeekCost = $filterByShops(Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()]))->sum('cost');
+        $thisWeekOrders = Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()])->count();
+        $thisWeekRevenue = Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()])->sum('total');
+        $thisWeekCost = Order::whereBetween('created_at', [$startOfWeek, now()->endOfDay()])->sum('cost');
 
         $startOfMonth = Carbon::now()->startOfMonth();
-        $thisMonthOrders = $filterByShops(Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()]))->count();
-        $thisMonthRevenue = $filterByShops(Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()]))->sum('total');
-        $thisMonthCost = $filterByShops(Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()]))->sum('cost');
+        $thisMonthOrders = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])->count();
+        $thisMonthRevenue = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])->sum('total');
+        $thisMonthCost = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])->sum('cost');
 
-        $topSellers = $this->fetchTopSellers($from, $to, $isUserRole);
+        // Top seller, shop
+        $topSellers = $this->fetchTopSellers($from, $to, false); // false vì không phân quyền
 
         $topShops = Order::selectRaw('shop_name, COUNT(*) as total_orders')
-            ->when($isUserRole, function ($query) use ($shopNames) {
-                return $query->whereIn('shop_name', $shopNames);
-            })
             ->groupBy('shop_name')
             ->orderByDesc('total_orders')
             ->limit(5)
@@ -117,14 +95,15 @@ class DashboardController extends Controller
             'topShops',
             'topSellers',
             'from',
-            'to',
-            'isUserRole'
+            'to'
         ));
     }
 
+
     private function fetchTopSellers($from, $to, $isUserRole)
     {
-        if ($isUserRole) return collect();
+        if ($isUserRole)
+            return collect();
 
         return DB::table('orders')
             ->join('seller_has_shop', 'orders.shop_name', '=', 'seller_has_shop.shop_name')

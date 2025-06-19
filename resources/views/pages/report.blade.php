@@ -39,7 +39,7 @@
                                 </div>
                             </div>
                             <input type="text" name="search" value="{{ request('search') }}"
-                                class="form-control px-3 py-2" placeholder="Search ....">
+                                class="form-control px-2 py-2" placeholder="Search ....">
 
                             <button class="btn btn-outline-secondary px-4" type="submit" id="btnsearch">
                                 <i class="fas fa-search"></i>

@@ -19,16 +19,24 @@ class SkuController extends Controller
     {
         $perPage = $request->get('perPage', 10);
         $query = Sku::query();
+
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('sku', 'like', "%$search%")
                     ->orWhere('name', 'like', "%$search%");
             });
         }
-        $skus = $query->paginate($perPage)->appends($request->only(['search']));
 
-        return view('pages.sku.index', compact('skus'));
+        if ($tier = $request->input('tier')) {
+            $query->where('tier', $tier);
+        }
+
+        $tiers = Tier::orderBy('tier')->get();
+        $skus = $query->paginate($perPage)->appends($request->only(['search', 'tier']));
+
+        return view('pages.sku.index', compact('skus', 'tiers'));
     }
+
 
     public function create()
     {
@@ -46,7 +54,7 @@ class SkuController extends Controller
             'quantity' => 'required|numeric|min:0',
             'tier' => 'required',
         ]);
-        
+
         DB::beginTransaction();
         try {
             $skuData = $request->only('sku', 'name', 'cost', 'quantity', 'tier');
@@ -61,9 +69,11 @@ class SkuController extends Controller
             app(SkuService::class)->updateOrdersBySku($sku);
 
             DB::commit();
+
             return redirect()->route('sku.index')->with('success', 'SKU saved and related orders updated.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('sku.index')->with('error', 'Failed to save SKU: ' . $e->getMessage());
         }
     }
@@ -71,6 +81,7 @@ class SkuController extends Controller
     public function edit(Sku $sku)
     {
         $tiers = Tier::orderBy('tier')->get();
+
         return view('pages.sku.edit', compact('sku', 'tiers'));
     }
 
@@ -87,15 +98,18 @@ class SkuController extends Controller
         $updateScope = $request->input('update_scope', 'all');
 
         DB::beginTransaction();
+
         try {
             $sku->update($request->only('sku', 'name', 'cost', 'quantity', 'tier'));
 
             app(SkuService::class)->updateOrdersBySku($sku, $updateScope);
 
             DB::commit();
+
             return redirect()->route('sku.index')->with('success', 'SKU và các đơn hàng liên quan đã được cập nhật.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('sku.index')->with('error', 'Cập nhật thất bại: ' . $e->getMessage());
         }
     }
@@ -103,6 +117,7 @@ class SkuController extends Controller
     public function destroy(Sku $sku)
     {
         $sku->delete();
+        
         return redirect()->route('sku.index')->with('success', 'SKU deleted successfully.');
     }
 

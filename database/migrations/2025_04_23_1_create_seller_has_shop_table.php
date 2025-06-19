@@ -13,8 +13,8 @@ class CreateSellerHasShopTable extends Migration
             $table->unsignedBigInteger('user_id');
 
             // Thông tin shop
-            $table->string('shop_code')->unique();
-            $table->string('shop_cipher')->unique();
+            $table->string('shop_code')->nullable();
+            $table->string('shop_cipher')->nullable();
             $table->string('shop_name');
             $table->string('bank')->nullable();
             $table->decimal('onhold', 10, 2)->default(0);

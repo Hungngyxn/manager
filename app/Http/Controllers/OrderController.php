@@ -135,6 +135,7 @@ class OrderController extends Controller
 				'date_end'
 			]));
 
+			// dd($orders);
 		return view('pages.order.index', compact(
 			'orders',
 			'sellers',

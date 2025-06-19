@@ -22,9 +22,9 @@
 
                             {{-- Dropdown Import --}}
                             <div class="dropdown">
-                                <button class="btn btn-outline-dark px-3 py-2" type="button"
-                                    data-bs-toggle="dropdown">
-                                    <i class="fas fa-file-excel me-1"></i> Import Excel
+                                <button class="btn btn-outline-dark px-3 py-2" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-file-excel me-2"></i> Import Excel
+                                    <i class="fas fa-caret-down ms-1"></i>
                                 </button>
                                 <ul class="dropdown-menu">
                                     <li>
@@ -211,7 +211,7 @@
                         </div>
                         <div class="form-group mb-3">
                             <label class="fw-bold">Mã Shop</label>
-                            <input type="text" name="shop_code" id="editShopCode" class="form-control" required>
+                            <input type="text" name="shop_code" id="editShopCode" class="form-control">
                         </div>
                         <div class="form-group mb-3">
                             <label class="fw-bold">Seller</label>

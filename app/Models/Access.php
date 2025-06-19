@@ -55,6 +55,7 @@ class Access extends Model
 
     public function checkRole($menus) {
         $checkedMenus = [];
+        
         foreach($menus as $menu) {
             if($menu->role_id == auth()->user()->role_id && $menu->status > 0) 
                 array_push($checkedMenus, $menu);

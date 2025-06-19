@@ -100,11 +100,11 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
         Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
-        Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
         Route::get('/shop/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
+        Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
     });
 
     // Sku

@@ -33,7 +33,6 @@ class AdsFeeController extends Controller
             ->where('date', $request->date)
             ->value('ads');
 
-
         return response()->json(['ads' => $ads]);
     }
 

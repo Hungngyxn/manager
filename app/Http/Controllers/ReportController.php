@@ -65,6 +65,7 @@ class ReportController extends Controller
             return redirect()->route('report.index')->with('success', 'Cập nhật chi phí Ads và các chỉ số thành công.');
         } catch (\Throwable $e) {
             logger()->error('Lỗi khi cập nhật report: ' . $e->getMessage());
+            
             return redirect()->back()->with('error', 'Đã xảy ra lỗi: ' . $e->getMessage());
         }
     }
@@ -116,8 +117,8 @@ class ReportController extends Controller
 
             if ($sku && $sku->tierBonus && is_numeric($sku->tierBonus->bonus)) {
                 $bonus_pct = $sku->tierBonus->bonus / 100;
-
                 $unit_profit = 0;
+
                 if ($order->quantity > 0) {
                     $unit_profit = (($order->total - ($sku->cost * $order->quantity)) / $order->quantity)
                         - $ads_per_unit

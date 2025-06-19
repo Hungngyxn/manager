@@ -49,6 +49,15 @@
                         {{-- Search --}}
                         <form method="GET" action="{{ route('sku.index') }}" id="filterForm"
                             class="d-flex align-items-center gap-2">
+                            <select name="tier" class="form-select" style="min-width: 140px">
+                                <option value="">-- Tất cả Tier --</option>
+                                @foreach ($tiers as $tier)
+                                    <option value="{{ $tier->tier }}"
+                                        {{ request('tier') == $tier->tier ? 'selected' : '' }}>
+                                        {{ $tier->tier }}
+                                    </option>
+                                @endforeach
+                            </select>
                             <input type="text" name="search" class="form-control px-3 py-2" placeholder="Search SKU..."
                                 value="{{ request('search') }}" style="min-width: 250px;">
                             <button type="submit" class="btn btn-outline-secondary px-4" id="btnsearch">
@@ -93,7 +102,7 @@
                                         <td>{{ number_format($sku->cost, 1) }}</td>
                                         <td>{{ number_format($sku->quantity) }}</td>
                                         <td>{{ $sku->tier }} </td>
-                                        @if (collect($accesses)->where('menu_id', 6)->first()->status == 2)
+                                        @if (collect($accesses)->where('menu_id', 7)->first()->status == 2)
                                             <td>
                                                 <a href="{{ route('sku.edit', $sku->id) }}"
                                                     class="btn btn-sm btn-outline-primary">

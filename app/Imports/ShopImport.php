@@ -16,8 +16,8 @@ class ShopImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows)
     {
         foreach ($rows as $row) {
-            $shopName = trim($row['shop_name'] ?? '');
-            $shopCode = trim($row['shop_code'] ?? '');
+            $shopName = trim($row['shop_name'] ?? 'Unsigned');
+            $shopCode = trim($row['shop_code'] ?? null);
             $sellerName = trim($row['seller_name'] ?? '');
 
             if (empty($shopName) || empty($sellerName)) {
@@ -28,7 +28,7 @@ class ShopImport implements ToCollection, WithHeadingRow
             $user = User::where('name', $sellerName)->first();
 
             if (!$user) {
-                $this->skipped[] = "[Không tìm thấy seller] $sellerName";
+                $this->skipped[] = "Không tìm thấy seller cho $shopName";
                 continue;
             }
 

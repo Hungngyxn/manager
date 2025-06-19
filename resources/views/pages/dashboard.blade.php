@@ -100,41 +100,38 @@
         </div>
 
         {{-- Top Sellers --}}
-        @if (!$isUserRole)
-            <form id="top-seller-filter" class="row g-3 mb-3 px-3 pt-3">
-                <div class="col-md-6">
-                    <label for="top_seller_range" class="form-label">Select Date Range</label>
-                    <input type="text" id="top_seller_range" class="form-control" placeholder="Select Date Range">
-                </div>
-                <div class="col-md-6 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                </div>
-            </form>
+        <form id="top-seller-filter" class="row g-3 mb-3 px-3 pt-3">
+            <div class="col-md-6">
+                <label for="top_seller_range" class="form-label">Select Date Range</label>
+                <input type="text" id="top_seller_range" class="form-control" placeholder="Select Date Range">
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary">Filter</button>
+            </div>
+        </form>
 
-            <table id="top-seller-table" class="table table-bordered m-0 text-center">
-                <thead>
+        <table id="top-seller-table" class="table table-bordered m-0 text-center">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Seller Name</th>
+                    <th>Total Cost</th>
+                    <th>Total Revenue</th>
+                    <th>Profit</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($topSellers as $index => $seller)
                     <tr>
-                        <th>#</th>
-                        <th>Seller Name</th>
-                        <th>Total Cost</th>
-                        <th>Total Revenue</th>
-                        <th>Profit</th>
+                        <td>{{ $index + 1 }}</td>
+                        <td>{{ $seller->seller_name }}</td>
+                        <td>{{ number_format($seller->total_cost, 2) }}</td>
+                        <td>{{ number_format($seller->total_revenue, 2) }}</td>
+                        <td>{{ number_format($seller->profit, 2) }}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach ($topSellers as $index => $seller)
-                        <tr>
-                            <td>{{ $index + 1 }}</td>
-                            <td>{{ $seller->seller_name }}</td>
-                            <td>{{ number_format($seller->total_cost, 2) }}</td>
-                            <td>{{ number_format($seller->total_revenue, 2) }}</td>
-                            <td>{{ number_format($seller->profit, 2) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
-
+                @endforeach
+            </tbody>
+        </table>
 
         {{-- Top Shops --}}
         <div class="row mt-5">
@@ -268,6 +265,4 @@
 
         });
     </script>
-
-
 @endsection

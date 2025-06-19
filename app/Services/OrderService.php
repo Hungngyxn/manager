@@ -27,10 +27,8 @@ class OrderService
     {
         // Tính chi phí gốc
         $this->cost = $this->sku->cost * $this->quantity;
-
         // Tính lợi nhuận
         $this->profit = $this->total - $this->cost - $this->fulfill_fee;
-
         // Tính thưởng theo tier nếu có
         $bonus_pct = $this->sku->tier->bonus ?? 0;
         $this->bonus = $this->profit * ($bonus_pct / 100);

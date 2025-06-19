@@ -19,7 +19,8 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             @if (Auth::user()->role->name !== 'Seller')
                                 {{-- Add Team Button (opens modal) --}}
-                                <button class="btn btn-outline-dark px-4 py-2" data-bs-toggle="modal" data-bs-target="#addTeamModal">
+                                <button class="btn btn-outline-dark px-4 py-2" data-bs-toggle="modal"
+                                    data-bs-target="#addTeamModal">
                                     <i class="fas fa-plus me-2"></i> Add Team
                                 </button>
                             @endif
@@ -38,11 +39,11 @@
 
                     {{-- Table --}}
                     <div class="table-responsive">
-                        <table class="table table-bordered table-hover text-center align-middle">
+                        <table class="table table-light table-striped table-hover table-bordered text-center">
                             <thead class="table-light text-uppercase">
                                 <tr>
-                                    <th>#</th>
-                                    <th>Team</th>
+                                    <th class="table-dark">#</th>
+                                    <th class="table-dark">Team</th>
                                 </tr>
                             </thead>
                             <tbody>

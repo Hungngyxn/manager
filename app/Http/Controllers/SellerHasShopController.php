@@ -54,14 +54,14 @@ class SellerHasShopController extends Controller
             });
         }
 
+        $totalShops = $query->count();
         $shops = $query->paginate(10)->appends($request->only(['search', 'user_id']));
-
         $sellers = [];
+
         if ($user->role->name !== 'Seller') {
             $sellers = User::whereHas('role')->get();
         }
 
-        $totalShops = $query->count();
 
         return view('pages.shop.index', compact('shops', 'sellers', 'totalShops'));
     }
@@ -69,6 +69,7 @@ class SellerHasShopController extends Controller
     public function create()
     {
         $sellers = User::whereHas('role')->get();
+
         return view('pages.shop.create', compact('sellers'));
     }
 
@@ -76,7 +77,6 @@ class SellerHasShopController extends Controller
     {
         $request->validate([
             'shop_name' => 'required|string|max:255',
-            'shop_code' => 'required|string|max:255',
         ]);
 
         DB::beginTransaction();
@@ -84,22 +84,22 @@ class SellerHasShopController extends Controller
             $shop = SellerHasShop::create([
                 'user_id' => $request->seller_id,
                 'shop_name' => trim($request->shop_name),
-                'shop_code' => $request->shop_code,
+                'shop_code' => $request->shop_code ?? null,
             ]);
 
             Order::where('shop_name', 'like', $request->shop_name . '%')
                 ->update(['shop_name' => $shop->shop_name, 'user_id' => $shop->user_id]);
 
-
-
             DB::commit();
+
             return redirect()->route('shop.index')->with('success', 'Shop created successfully.');
         } catch (QueryException $e) {
             DB::rollBack();
-            dd($e->getMessage());
+
             return redirect()->route('shop.index')->with('error', 'Failed to create shop. Maybe duplicated shop name or code.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('shop.index')->with('error', 'Unexpected error: ' . $e->getMessage());
         }
     }
@@ -107,6 +107,7 @@ class SellerHasShopController extends Controller
     public function edit(SellerHasShop $shop)
     {
         $this->authorizeShopAccess($shop);
+
         return view('pages.shop.edit', compact('shop'));
     }
 
@@ -114,22 +115,48 @@ class SellerHasShopController extends Controller
     {
         $this->authorizeShopAccess($shop);
 
+        $validated = $request->validate([
+            'shop_name' => 'required|string|max:255',
+            'shop_code' => 'nullable|string|max:255',
+            'user_id' => 'required|exists:users,id',
+            'on_hold' => 'nullable|numeric',
+            'payout' => 'nullable|numeric',
+        ]);
+
         DB::beginTransaction();
         try {
-            $shop->update($request->only('user_id'));
+            $originalShopName = $shop->shop_name;
+
+            // Cập nhật thông tin shop
+            $shop->update($validated);
+
+            // Nếu tên shop thay đổi thì cập nhật các đơn hàng cũ
+            if ($originalShopName !== $validated['shop_name']) {
+                Order::where('shop_name', 'like', $originalShopName . '%')
+                    ->update([
+                        'shop_name' => $shop->shop_name,
+                        'user_id' => $shop->user_id,
+                    ]);
+            }
+
             DB::commit();
+
             return redirect()->route('shop.index')->with('success', 'Shop updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('shop.index')->with('error', 'Error updating shop: ' . $e->getMessage());
         }
     }
+
+
 
     public function destroy(SellerHasShop $shop)
     {
         $this->authorizeShopAccess($shop);
 
         DB::beginTransaction();
+
         try {
             Order::where('shop_name', $shop->shop_name)
                 ->update(['shop_name' => $shop->shop_name . ' - Chưa được add']);
@@ -137,9 +164,11 @@ class SellerHasShopController extends Controller
             $shop->delete();
 
             DB::commit();
+
             return redirect()->route('shop.index')->with('success', 'Shop deleted successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('shop.index')->with('error', 'Error deleting shop: ' . $e->getMessage());
         }
     }
@@ -147,6 +176,7 @@ class SellerHasShopController extends Controller
     private function authorizeShopAccess(SellerHasShop $shop)
     {
         $user = auth()->user();
+        
         if ($user->role->name === 'Seller' && $shop->seller_id !== $user->id) {
             abort(403, 'Unauthorized access to shop.');
         }
@@ -174,7 +204,6 @@ class SellerHasShopController extends Controller
 
     public function importShop(Request $request)
     {
-
         $request->validate([
             'file.*' => 'required|mimes:xlsx,xls'
         ]);
@@ -235,6 +264,7 @@ class SellerHasShopController extends Controller
         }
 
         DB::beginTransaction();
+
         try {
             $client = $this->tiktok->client();
             $accessToken = $this->tiktok->fetchAccessToken($client, $code);
@@ -256,6 +286,7 @@ class SellerHasShopController extends Controller
             // ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            
             return redirect()->route('shop.index')->with('error', 'Lỗi: ' . $e->getMessage());
         }
     }
