@@ -4,7 +4,7 @@
     @php
         $isAdmin = auth()->user()->role->name === 'Administrator';
     @endphp
-    <div class="container-fluid mt-2 px-4">
+    <div class="container-fluid mt-2">
         <div class="row">
             <div class="col-12">
                 <h4 class="font-weight-bold">Orders</h4>
@@ -89,19 +89,17 @@
                                             </label>
                                         </form>
                                     </li>
-                                    @if ($isAdmin)
-                                        <li>
-                                            <form action="{{ route('orders.import.fulfill_fee') }}" method="POST"
-                                                enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0">
-                                                @csrf
-                                                <label class="dropdown-item d-block">
-                                                    <i class="fas fa-upload me-1"></i> Import Fulfill Fee
-                                                    <input type="file" name="file" accept=".xlsx,.xls"
-                                                        onchange="handleImport(this)" hidden>
-                                                </label>
-                                            </form>
-                                        </li>
-                                    @endif
+                                    <li>
+                                        <form action="{{ route('orders.import.fulfill_fee') }}" method="POST"
+                                            enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0">
+                                            @csrf
+                                            <label class="dropdown-item d-block">
+                                                <i class="fas fa-upload me-1"></i> Import Fulfill Fee
+                                                <input type="file" name="file" accept=".xlsx,.xls"
+                                                    onchange="handleImport(this)" hidden>
+                                            </label>
+                                        </form>
+                                    </li>
                                 </ul>
                             </div>
 
@@ -131,6 +129,19 @@
                                 </form>
                             @endif
                         </div>
+                    </div>
+
+                    @if (session('success'))
+                        <div class="alert alert-success">{{ session('success') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="alert alert-danger">{{ session('error') }}</div>
+                    @endif
+                    <div id="importSpinner" class="text-center my-3" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Đang xử lý file Excel, vui lòng chờ...</p>
                     </div>
 
                     <div class="table-responsive">
