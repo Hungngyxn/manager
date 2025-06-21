@@ -89,24 +89,9 @@ class TikTokService
         ];
 
         $response = $client->Finance->getStatements($body);
-        dd($response);
 
         return $shops['shops'][0]['cipher'] ?? throw new \Exception('Không lấy được shop_cipher');
     }
-
-    // public function fetchOrderList(Client $client, int $pageSize = 25): array
-    // {
-    //     //     $body = [
-    //     //     'create_time_ge' => now()->subDays(21)->timestamp,
-    //     //     'create_time_le' => now()->timestamp,
-    //     // ];
-
-    //     $response = $client->Order->getOrderList([
-    //         'page_size' => $pageSize,
-    //     ]);
-    //     dd($response['orders']);
-    //     return $response['orders'] ?? [];
-    // }
 
     public function fetchOrderList(Client $client, int $pageSize = 100): array
     {
@@ -129,7 +114,6 @@ class TikTokService
             $allOrders = array_merge($allOrders, $orders);
 
         } while (!empty($pageToken));
-        // dd($allOrders);
         return $allOrders;
     }
 

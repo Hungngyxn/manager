@@ -147,7 +147,7 @@ class SkuController extends Controller
                 $messages[] = '⚠️ Bỏ qua:<br>• ' . $skippedLines;
             }
 
-            return redirect()->route('sku.index')->with('import_status', implode('<br>', $messages));
+            return redirect()->route('sku.index')->with('status', implode('<br>', $messages));
         } catch (\Exception $e) {
             $errorInfo = [
                 'message' => $e->getMessage(),
@@ -155,7 +155,7 @@ class SkuController extends Controller
                 'file' => $e->getFile(),
             ];
 
-            return redirect()->route('sku.index')->with('import_error', $errorInfo);
+            return redirect()->route('sku.index')->with('error', 'Import thất bại: ' . $errorInfo);
         }
     }
 

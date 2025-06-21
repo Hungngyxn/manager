@@ -10,7 +10,7 @@ class CreateSellerHasShopTable extends Migration
     {
         Schema::create('seller_has_shop', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable(); // Cho phép null
 
             // Thông tin shop
             $table->string('shop_code')->nullable();

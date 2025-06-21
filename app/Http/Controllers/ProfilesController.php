@@ -2,14 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreProfileRequest;
-use App\Models\Employee;
-use App\Models\EmployeeDetail;
-use App\Models\Log;
 use App\Models\User;
 use Hash;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
+use Illuminate\Http\Request;
+
 
 class ProfilesController extends Controller
 {
@@ -26,24 +23,31 @@ class ProfilesController extends Controller
     public function index()
     {
         $profile = auth()->user()->load('role', 'team');
-        
+
         return view('pages.profile', compact('profile'));
     }
-
-    /**
-     * Update the user's profile.
-     *
-     * @param  StoreProfileRequest  $request
-     * @param  User  $user
-     * @return RedirectResponse
-     */
-    public function update(StoreProfileRequest $request, User $user): void        
+    public function update(Request $request, User $user)
     {
-        // Cập nhật User
-        $user->update([
-            'name' => $request->input('name'),
-            'email' => $request->input('email'),
-            'password' => Hash::make($request->input('password')),
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'password' => 'nullable|string|min:6',
+            ]);
+
+            $data = [
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+            ];
+
+            if (!empty($validated['password'])) {
+                $data['password'] = Hash::make($validated['password']);
+            }
+            $user->update($data);
+
+            return redirect()->back()->with('status', 'Updated successfully!');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 }

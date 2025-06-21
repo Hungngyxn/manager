@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Imports;
 
 use App\Models\Order;
@@ -38,34 +39,35 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     continue;
                 }
 
-                [$extraId, $skuCode] = explode('___', $key);
+                [$extraId, $rawSku] = explode('___', $key);
                 $shopName = trim($firstRow['warehouse_name']) ?? null;
-                $userId = SellerHasShop::where('shop_name', $shopName)->get()->first()->user_id ?? auth()->user()->id;
+                $userId = SellerHasShop::where('shop_name', $shopName)->value('user_id') ?? "Chưa assign";
 
-                $sku = null;
-                $cost = 0;
-                $profit = 0;
-                $bonus = 0;
+                if (!$extraId || !$rawSku || !$shopName) {
+                    $this->skipped[] = $extraId . ' - ' . $rawSku;
+                    continue;
+                }
 
-                if (!$extraId || !$skuCode || !$shopName || Order::where('extra_id', $extraId)->where('sku', $skuCode)->exists()) {
+                $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
+
+                $parsed = $this->parseSkuWithPack($rawSku, $originalQty);
+                $skuCode = $parsed['sku'];
+                $quantity = $parsed['quantity'];
+
+                if (Order::where('extra_id', $extraId)->where('sku', $skuCode)->exists()) {
                     $this->skipped[] = $extraId . ' - ' . $skuCode;
                     continue;
                 }
 
-                $quantity = $groupRows->sum(function ($row) {
-                    return (int) ($row['quantity'] ?? 1);
-                });
-
                 $total = $groupRows->sum(function ($row) {
-                    $calTotal = floatval($row['sku_subtotal_before_discount'] - $row['sku_seller_discount'] - $row['shipping_fee_seller_discount']);
-                    return $calTotal;
+                    return floatval($row['sku_subtotal_before_discount'] - $row['sku_seller_discount'] - $row['shipping_fee_seller_discount']);
                 });
 
                 $sku = Sku::where('sku', $skuCode)->first();
+                $cost = $profit = $bonus = 0;
 
                 if ($sku) {
                     $sku->decrement('quantity', $quantity);
-
                     $service = new OrderService($sku, $quantity, $total);
                     $calculated = $service->calculate();
                     $cost = $calculated['cost'];
@@ -73,18 +75,18 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     $bonus = $calculated['bonus'];
                 }
 
-                $checkedShop = optional(SellerHasShop::where('shop_name', $shopName)->first())->shop_name;
+                $checkedShop = SellerHasShop::where('shop_name', $shopName)->value('shop_name');
 
                 Order::create([
                     'extra_id' => $extraId,
                     'sku' => $skuCode,
                     'shop_name' => $checkedShop ?? $shopName . ' - Chưa được add',
                     'quantity' => $quantity,
-                    'cost' => $cost ?? 0,
-                    'profit' => $profit ?? 0,
-                    'bonus' => $bonus ?? 0,
+                    'cost' => $cost,
+                    'profit' => $profit,
+                    'bonus' => $bonus,
                     'total' => $total,
-                    'user_id' => $userId ?? 0,
+                    'user_id' => $userId,
                 ]);
             }
 
@@ -94,4 +96,37 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
             throw $e;
         }
     }
+
+    // 👇 Hàm xử lý SKU có pack
+    protected function parseSkuWithPack(string $rawSku, int $originalQuantity): array
+    {
+        // Nếu SKU gốc tồn tại, không cần xử lý pack
+        if (Sku::where('sku', $rawSku)->exists()) {
+            return [
+                'sku' => $rawSku,
+                'quantity' => $originalQuantity,
+            ];
+        }
+
+        // Tách số lượng từ pattern như Pack2, 2pack, pack_3, _pack2, v.v.
+        if (preg_match('/(?:^|_)?(?:pack)?(\d+)(?:pack)?(?:_|$)/i', $rawSku, $matches)) {
+            $packQty = (int) $matches[1];
+
+            // Loại bỏ phần "pack" ra khỏi SKU
+            $cleanSku = preg_replace('/(?:^|_)?(?:pack)?\d+(?:pack)?(?:_|$)/i', '_', $rawSku);
+            $cleanSku = trim($cleanSku, '_');
+
+            return [
+                'sku' => $cleanSku,
+                'quantity' => $originalQuantity * $packQty,
+            ];
+        }
+
+        // Không match pattern → trả nguyên
+        return [
+            'sku' => $rawSku,
+            'quantity' => $originalQuantity,
+        ];
+    }
+
 }

@@ -127,16 +127,16 @@ class SellerHasShopController extends Controller
         try {
             $originalShopName = $shop->shop_name;
 
-            // Cập nhật thông tin shop
             $shop->update($validated);
 
-            // Nếu tên shop thay đổi thì cập nhật các đơn hàng cũ
             if ($originalShopName !== $validated['shop_name']) {
-                Order::where('shop_name', 'like', $originalShopName . '%')
-                    ->update([
-                        'shop_name' => $shop->shop_name,
-                        'user_id' => $shop->user_id,
-                    ]);
+                if (str_ends_with($originalShopName, ' - Chưa được add')) {
+                    Order::where('shop_name', $originalShopName)
+                        ->update([
+                            'shop_name' => $shop->shop_name,
+                            'user_id' => $shop->user_id,
+                        ]);
+                }
             }
 
             DB::commit();
@@ -176,7 +176,7 @@ class SellerHasShopController extends Controller
     private function authorizeShopAccess(SellerHasShop $shop)
     {
         $user = auth()->user();
-        
+
         if ($user->role->name === 'Seller' && $shop->seller_id !== $user->id) {
             abort(403, 'Unauthorized access to shop.');
         }
@@ -210,14 +210,26 @@ class SellerHasShopController extends Controller
 
         $import = new ShopImport;
 
-        Excel::import($import, $request->file('file'));
+        try {
+            \DB::beginTransaction();
 
-        return back()->with([
-            'status' => 'Import shop hoàn tất!',
-            'created' => $import->created,
-            'skipped' => $import->skipped,
-        ]);
+            Excel::import($import, $request->file('file'));
+
+            \DB::commit();
+
+            return back()->with([
+                'status' => 'Import shop hoàn tất!',
+                'error' => 'Import thất bại dòng: ' . implode(', ', $import->skipped),
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+
+            return back()->with([
+                'error' => 'Import thất bại: ' . $e->getMessage(),
+            ]);
+        }
     }
+
 
     public function downloadSample()
     {
@@ -286,7 +298,7 @@ class SellerHasShopController extends Controller
             // ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return redirect()->route('shop.index')->with('error', 'Lỗi: ' . $e->getMessage());
         }
     }

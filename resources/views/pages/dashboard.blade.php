@@ -1,7 +1,7 @@
 @extends('layouts.admin', ['accesses' => $accesses, 'active' => 'dashboard'])
 
 @section('_content')
-    <div class="container-fluid mt-2 px-4">
+    <div class="container-fluid mt-2">
         {{-- Title --}}
         <div class="row">
             <div class="col-12">

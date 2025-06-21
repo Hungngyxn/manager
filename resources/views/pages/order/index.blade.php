@@ -83,7 +83,7 @@
                                             id="importForm">
                                             @csrf
                                             <label class="dropdown-item d-block" style="cursor: pointer">
-                                                <i class="fas fa-file-excel me-1"></i> Import Excel
+                                                <i class="fas fa-file-excel me-1"></i> Import Excel (Tối đa 20 file)
                                                 <input type="file" name="file[]" accept=".xlsx,.xls"
                                                     onchange="handleImport(this)" style="display: none;" multiple>
                                             </label>
@@ -94,7 +94,7 @@
                                             enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0">
                                             @csrf
                                             <label class="dropdown-item d-block">
-                                                <i class="fas fa-upload me-1"></i> Import Fulfill Fee
+                                                <i class="fas fa-upload me-1"></i> Import Fulfill Fee (Tối đa 20 file)
                                                 <input type="file" name="file" accept=".xlsx,.xls"
                                                     onchange="handleImport(this)" hidden>
                                             </label>

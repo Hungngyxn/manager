@@ -135,7 +135,6 @@ class OrderController extends Controller
 				'date_end'
 			]));
 
-			// dd($orders);
 		return view('pages.order.index', compact(
 			'orders',
 			'sellers',
@@ -189,6 +188,7 @@ class OrderController extends Controller
 			return redirect()->route('orders.index')->with('status', 'Order created successfully!');
 		} catch (\Exception $e) {
 			DB::rollBack();
+
 			return redirect()->back()->with('error', 'Lỗi khi tạo đơn hàng: ' . $validated['extra_id']);
 		}
 	}
@@ -225,9 +225,11 @@ class OrderController extends Controller
 			$order->save();
 
 			DB::commit();
+
 			return redirect()->back()->with('status', 'Order ' . $validated['extra_id'] . ' updated successfully!');
 		} catch (\Exception $e) {
 			DB::rollBack();
+
 			return redirect()->back()->with('error', 'Lỗi khi cập nhật đơn hàng: ' . $validated['extra_id']);
 		}
 	}
@@ -240,9 +242,11 @@ class OrderController extends Controller
 			$order->delete();
 
 			DB::commit();
+
 			return redirect()->back()->with('status', 'Đơn hàng đã được xóa.');
 		} catch (\Exception $e) {
 			DB::rollBack();
+
 			return redirect()->back()->with('error', 'Lỗi khi xóa đơn hàng: ' . $e->getMessage());
 		}
 	}
@@ -262,9 +266,11 @@ class OrderController extends Controller
 			Order::whereIn('id', $orderIds)->delete();
 
 			DB::commit();
+
 			return redirect()->route('orders.index')->with('status', 'Xóa đơn hàng thành công.');
 		} catch (\Exception $e) {
 			DB::rollBack();
+			
 			return redirect()->back()->with('error', 'Đã xảy ra lỗi khi xóa: ' . $e->getMessage());
 		}
 	}
@@ -293,7 +299,7 @@ class OrderController extends Controller
 					$skippedCodes = array_merge($skippedCodes, $orders->skipped);
 				}
 			} catch (\Exception $e) {
-				return redirect()->route('orders.index')->with('error', $e->getMessage());
+				return redirect()->route('orders.index')->with('error', 'Import thất bại: ' . $e->getMessage());
 			}
 		}
 
