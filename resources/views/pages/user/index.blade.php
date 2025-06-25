@@ -15,11 +15,11 @@
 
                     {{-- Bộ lọc và nút tạo mới --}}
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-                        @if (Auth::user()->role->name != 'Seller')
+                        @canEdit
                             <a href="{{ route('user.create') }}" class="btn btn-outline-dark d-flex align-items-center">
                                 <i class="fas fa-plus me-1"></i> <span>Create</span>
                             </a>
-                        @endif
+                        @endcanEdit
 
                         <form method="GET" action="{{ route('user.index') }}" id="filterForm"
                             class="d-flex align-items-center gap-2 ms-auto">

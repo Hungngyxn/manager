@@ -351,6 +351,12 @@ class OrderController extends Controller
 		} catch (\Exception $e) {
 			return redirect()->route('orders.index')->with('error', $e->getMessage());
 		}
-
 	}
+
+	public function downloadSample()
+    {
+        $path = public_path('sample_excel/sample_fulfill_fee.xlsx');
+
+        return response()->download($path, 'sample_fulfill_fee.xlsx');
+    }
 }

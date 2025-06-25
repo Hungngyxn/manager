@@ -17,7 +17,7 @@
                     {{-- Toolbar --}}
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            @if (Auth::user()->role->name !== 'Seller')
+                            @canEdit
                                 {{-- Add --}}
                                 <div class="btn-group">
                                     <button class="btn btn-outline-dark dropdown-toggle px-4 py-2" type="button"
@@ -43,7 +43,7 @@
                                         </li>
                                     </ul>
                                 </div>
-                            @endif
+                            @endcanEdit
                         </div>
 
                         {{-- Search --}}
@@ -89,9 +89,9 @@
                                     <th>Base Cost</th>
                                     <th>Quantity</th>
                                     <th>Tier</th>
-                                    @if (Auth::user()->role->name !== 'Seller')
+                                    @canEdit
                                         <th>Actions</th>
-                                    @endif
+                                    @endcanEdit
                                 </tr>
                             </thead>
                             <tbody>

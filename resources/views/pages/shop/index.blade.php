@@ -12,9 +12,9 @@
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="card bg-light text-dark p-4 shadow-sm rounded">
-
                     {{-- Toolbar --}}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+                        @canEdit
                         <div class="d-flex gap-2 flex-wrap">
                             <a href="{{ route('shop.create') }}" class="btn btn-outline-dark px-3 py-2">
                                 <i class="fas fa-plus me-2"></i> Add New Shop
@@ -51,10 +51,11 @@
                                 <i class="fab fa-tiktok me-2"></i> Kết nối TikTok Shop
                             </button>
                         </div>
+                        @endcanEdit
 
                         {{-- Filter Form --}}
                         <form method="GET" action="{{ route('shop.index') }}" id="filterForm"
-                            class="d-flex align-items-center gap-2">
+                            class="d-flex align-items-center gap-2 ms-auto">
                             @if (count($sellers))
                                 <select name="user_id" class="form-select px-4 py-2 select2">
                                     <option value="">-- All Sellers --</option>
@@ -70,7 +71,7 @@
                             @endif
 
                             <input type="text" name="search" value="{{ request('search') }}"
-                                class="form-control px-4 py-2" placeholder="Search ..." style="min-width: 250px;">
+                                class="form-control px-4 py-2 col-4" placeholder="Search ..." style="min-width: 250px;">
                             <button type="submit" class="btn btn-outline-secondary px-4" id="btnsearch">
                                 <i class="fas fa-search"></i></button>
                             <button type="button" class="btn btn-danger" onclick="resetFilters()"><i
@@ -104,9 +105,9 @@
                                     <th>On Hold</th>
                                     <th>Payout</th>
                                     <th>Seller</th>
-                                    @if (Auth::user()->role->name !== 'Seller')
+                                    @canEdit
                                         <th>Actions</th>
-                                    @endif
+                                    @endcanEdit
                                 </tr>
                             </thead>
                             <tbody>
@@ -119,7 +120,7 @@
                                         <td>{{ $shop->on_hold }}</td>
                                         <td>{{ $shop->payout }}</td>
                                         <td>{{ optional($shop->seller)->name ?? 'Unassigned' }}</td>
-                                        @if (Auth::user()->role->name !== 'Seller')
+                                        @canEdit
                                             <td>
                                                 <button type="button" class="btn btn-sm btn-outline-primary"
                                                     onclick="openEditModal({{ $shop->id }}, '{{ addslashes($shop->shop_name) }}', '{{ $shop->shop_code }}', '{{ $shop->user_id }}', '{{ $shop->on_hold }}', '{{ $shop->payout }}')">
@@ -137,11 +138,12 @@
 
                                                 <a href="{{ route('tiktok.reconnect', $shop->id) }}"
                                                     class="btn btn-sm btn-outline-dark"
-                                                    onclick="return confirm('Bạn có chắc chắn muốn kết nối lại TikTok Shop này?')">
+                                                    onclick="return confirm('Bạn có chắc chắn muốn kết nối lại TikTok Shop này?')"
+                                                    hidden>
                                                     <i class="fa-solid fa-repeat me-1"></i>
                                                 </a>
                                             </td>
-                                        @endif
+                                        @endcanEdit
                                     </tr>
                                 @empty
                                     <tr>

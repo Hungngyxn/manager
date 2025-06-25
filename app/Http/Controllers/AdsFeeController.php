@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\AdsFeeImport;
 use App\Models\AdsFee;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdsFeeController extends Controller
 {
@@ -12,7 +15,7 @@ class AdsFeeController extends Controller
         $request->validate([
             'user_id' => 'required|exists:users,id',
             'date' => 'required|date_format:Y-m-d',
-            'ads' => 'required|numeric|min:0',
+            'ads' => 'required|numeric',
         ]);
         try {
             AdsFee::updateOrCreate(
@@ -34,6 +37,35 @@ class AdsFeeController extends Controller
             ->value('ads');
 
         return response()->json(['ads' => $ads]);
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'ads_excel' => 'required|file|mimes:xlsx,xls'
+        ]);
+
+        try {
+            $importer = new AdsFeeImport();
+            $filePath = $request->file('ads_excel')->getPathname();
+
+            $message = $importer->importAdsFeeFromExcel($filePath);
+
+            $minDate = AdsFee::min('date');
+            $maxDate = AdsFee::max('date');
+            $allUserIds = AdsFee::select('user_id')->distinct()->pluck('user_id');
+
+            foreach ($allUserIds as $userId) {
+                ReportController::calculateReportForUser($userId, null, $minDate, $maxDate);
+            }
+
+            return redirect()->route('report.index', [
+                'date_range' => $minDate . ' to ' . $maxDate
+            ])->with('status', $message);
+
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Import thất bại: ' . $e->getMessage());
+        }
     }
 
 }

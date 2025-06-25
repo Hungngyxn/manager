@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithStartRow;
+use Carbon\Carbon;
 
 class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 {
@@ -28,7 +29,7 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
         try {
             $grouped = $rows->groupBy(function ($row) {
-                return $row['order_id'] . '___' . $row['seller_sku'];
+                return $row['order_id'] . '___' . $row['seller_sku'] . '___' . $row['sku_id'];
             });
 
             foreach ($grouped as $key => $groupRows) {
@@ -39,7 +40,7 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     continue;
                 }
 
-                [$extraId, $rawSku] = explode('___', $key);
+                [$extraId, $rawSku, $orderId] = explode('___', $key);
                 $shopName = trim($firstRow['warehouse_name']) ?? null;
                 $userId = SellerHasShop::where('shop_name', $shopName)->value('user_id') ?? "Chưa assign";
 
@@ -48,13 +49,24 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     continue;
                 }
 
-                $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
+                // 👉 Lấy Created Time từ Excel và parse
+                $createdTimeRaw = $firstRow['created_time'] ?? null;
+                try {
+                    $createdAt = $createdTimeRaw
+                        ? Carbon::createFromFormat('m/d/Y g:i:s A', $createdTimeRaw)
+                        : now();
+                } catch (\Exception $e) {
+                    $this->skipped[] = "$extraId - $rawSku (invalid created_time)";
+                    continue;
+                }
 
+                $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
                 $parsed = $this->parseSkuWithPack($rawSku, $originalQty);
+                $this->calculated[] = $parsed;
                 $skuCode = $parsed['sku'];
                 $quantity = $parsed['quantity'];
 
-                if (Order::where('extra_id', $extraId)->where('sku', $skuCode)->exists()) {
+                if (Order::where('extra_id', $extraId)->where('sku', $skuCode)->where('order_id', $orderId)->exists()) {
                     $this->skipped[] = $extraId . ' - ' . $skuCode;
                     continue;
                 }
@@ -77,7 +89,7 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
                 $checkedShop = SellerHasShop::where('shop_name', $shopName)->value('shop_name');
 
-                Order::create([
+                $order = new Order([
                     'extra_id' => $extraId,
                     'sku' => $skuCode,
                     'shop_name' => $checkedShop ?? $shopName . ' - Chưa được add',
@@ -86,8 +98,13 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     'profit' => $profit,
                     'bonus' => $bonus,
                     'total' => $total,
+                    'order_id' => $orderId,
                     'user_id' => $userId,
                 ]);
+
+                $order->forceFill([
+                    'created_at' => $createdAt,
+                ])->save();
             }
 
             DB::commit();
@@ -97,10 +114,9 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
         }
     }
 
-    // 👇 Hàm xử lý SKU có pack
     protected function parseSkuWithPack(string $rawSku, int $originalQuantity): array
     {
-        // Nếu SKU gốc tồn tại, không cần xử lý pack
+        // Nếu SKU gốc tồn tại → giữ nguyên
         if (Sku::where('sku', $rawSku)->exists()) {
             return [
                 'sku' => $rawSku,
@@ -108,24 +124,24 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
             ];
         }
 
-        // Tách số lượng từ pattern như Pack2, 2pack, pack_3, _pack2, v.v.
-        if (preg_match('/(?:^|_)?(?:pack)?(\d+)(?:pack)?(?:_|$)/i', $rawSku, $matches)) {
-            $packQty = (int) $matches[1];
+        $packQty = 1;
+        $cleanSku = $rawSku;
 
-            // Loại bỏ phần "pack" ra khỏi SKU
-            $cleanSku = preg_replace('/(?:^|_)?(?:pack)?\d+(?:pack)?(?:_|$)/i', '_', $rawSku);
-            $cleanSku = trim($cleanSku, '_');
-
-            return [
-                'sku' => $cleanSku,
-                'quantity' => $originalQuantity * $packQty,
-            ];
+        // 👉 Xử lý "pack" ở đầu
+        if (preg_match('/^(pack)?(\d+)(pack)?[_-]/i', $rawSku, $matches)) {
+            $packQty = (int) $matches[2];
+            $cleanSku = preg_replace('/^(pack)?\d+(pack)?[_-]/i', '', $rawSku);
         }
 
-        // Không match pattern → trả nguyên
+        // 👉 Xử lý "pack" ở cuối
+        elseif (preg_match('/[_-](pack)?(\d+)(pack)?$/i', $rawSku, $matches)) {
+            $packQty = (int) $matches[2];
+            $cleanSku = preg_replace('/[_-](pack)?\d+(pack)?$/i', '', $rawSku);
+        }
+
         return [
-            'sku' => $rawSku,
-            'quantity' => $originalQuantity,
+            'sku' => trim($cleanSku, '_- '),
+            'quantity' => $originalQuantity * $packQty,
         ];
     }
 

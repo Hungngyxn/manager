@@ -18,6 +18,7 @@ class CreateReportsTable extends Migration
             $table->decimal('base_cost', 15, 2)->default(0);
             $table->decimal('ads', 15, 2)->default(0);
             $table->decimal('bonus', 15, 2)->default(0);
+            $table->timestamp('last_calculated_at')->nullable();
             $table->timestamps();
 
             $table->foreign('user')->references('id')->on('users')->onDelete('cascade');

@@ -8,15 +8,12 @@ use App\Models\Sku;
 use App\Models\User;
 use App\Models\AdsFee;
 use Illuminate\Http\Request;
-use Carbon\Carbon;
 
 class ReportController extends Controller
 {
     public function index(Request $request)
     {
         $query = Report::query()->with('userInfo');
-        $users = User::select('id', 'name')->get();
-
         $defaultStartDate = now()->startOfMonth();
         $defaultEndDate = now()->endOfMonth();
 
@@ -25,22 +22,73 @@ class ReportController extends Controller
 
         if ($request->filled('date_range')) {
             $dates = explode(' to ', $request->date_range);
-            $date_start = $dates[0] ?? null;
-            $date_end = $dates[1] ?? $dates[0];
+            $date_start = $dates[0] ?? $defaultStartDate;
+            $date_end = $dates[1] ?? $dates[0] ?? $defaultEndDate;
         }
+
+        $isFiltering = $request->filled('user_id') || $request->filled('date_range');
 
         if (auth()->user()->role->name === 'Seller') {
             $userId = auth()->id();
-            $this->calculateReportForUser($userId, null, $date_start, $date_end);
+            $report = Report::where('user', $userId)->first();
+
+            if ($isFiltering || !$report) {
+                self::calculateReportForUser($userId, null, $date_start, $date_end);
+            }
+
             $query->where('user', $userId);
             $users = collect([auth()->user()]);
         } else {
-            foreach ($users as $user) {
-                $this->calculateReportForUser($user->id, null, $date_start, $date_end);
+            $allUsers = User::select('id', 'name')->get();
+            $users = collect();
+
+            foreach ($allUsers as $user) {
+                $report = Report::where('user', $user->id)->first();
+
+                if ($isFiltering || !$report) {
+                    self::calculateReportForUser($user->id, null, $date_start, $date_end);
+                    $report = Report::where('user', $user->id)->first(); // cập nhật sau khi tính
+                }
+
+                if ($report && $report->unit_sale > 0) {
+                    $users->push($user);
+                }
             }
 
             if ($request->filled('user_id')) {
                 $query->where('user', $request->user_id);
+            } else {
+                $query->whereIn('user', $users->pluck('id'));
+            }
+        }
+
+        // Sắp xếp nếu có yêu cầu
+        if ($request->filled('sort')) {
+            switch ($request->sort) {
+                case 'unit_sale_asc':
+                    $query->orderBy('unit_sale', 'asc');
+                    break;
+                case 'unit_sale_desc':
+                    $query->orderBy('unit_sale', 'desc');
+                    break;
+                case 'revenue_asc':
+                    $query->orderBy('revenue', 'asc');
+                    break;
+                case 'revenue_desc':
+                    $query->orderBy('revenue', 'desc');
+                    break;
+                case 'base_cost_asc':
+                    $query->orderBy('base_cost', 'asc');
+                    break;
+                case 'base_cost_desc':
+                    $query->orderBy('base_cost', 'desc');
+                    break;
+                case 'profit_asc':
+                    $query->orderBy('profit', 'asc');
+                    break;
+                case 'profit_desc':
+                    $query->orderBy('profit', 'desc');
+                    break;
             }
         }
 
@@ -65,12 +113,12 @@ class ReportController extends Controller
             return redirect()->route('report.index')->with('success', 'Cập nhật chi phí Ads và các chỉ số thành công.');
         } catch (\Throwable $e) {
             logger()->error('Lỗi khi cập nhật report: ' . $e->getMessage());
-            
+
             return redirect()->back()->with('error', 'Đã xảy ra lỗi: ' . $e->getMessage());
         }
     }
 
-    protected function calculateReportForUser(int $userId, ?float $customAds = null, ?string $date_start = null, ?string $date_end = null)
+    public static function calculateReportForUser(int $userId, ?float $customAds = null, ?string $date_start = null, ?string $date_end = null)
     {
         $orders = Order::where('user_id', $userId);
 
@@ -84,7 +132,8 @@ class ReportController extends Controller
 
         $orders = $orders->get();
 
-        $ads = $this->calculateAds($userId, $customAds, $date_start, $date_end);
+        $ads = self::calculateAds($userId, $customAds, $date_start, $date_end);
+        Report::where('user', $userId)->update(['last_calculated_at' => now()]);
 
         if ($orders->isEmpty()) {
             Report::updateOrCreate(
@@ -98,7 +147,6 @@ class ReportController extends Controller
                     'bonus' => 0,
                 ]
             );
-
             return;
         }
 
@@ -142,7 +190,7 @@ class ReportController extends Controller
         );
     }
 
-    protected function calculateAds(int $userId, ?float $customAds, ?string $date_start, ?string $date_end)
+    protected static function calculateAds(int $userId, ?float $customAds, ?string $date_start, ?string $date_end)
     {
         if ($customAds !== null) {
             return $customAds;
@@ -157,5 +205,4 @@ class ReportController extends Controller
 
         return AdsFee::where('user_id', $userId)->sum('ads');
     }
-
 }

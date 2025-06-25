@@ -12,9 +12,16 @@
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="bg-light text-dark card p-4 shadow-sm rounded">
-                    <div class="d-flex justify-content-end align-items-center mb-4 flex-wrap" style="float: right">
+                    {{-- Nút Import và Bộ lọc --}}
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
+                        @canEdit
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importAdsModal">
+                            <i class="fas fa-file-import me-1"></i> Import Ads
+                        </button>
+                        @endcanEdit
+
                         <form method="GET" action="{{ route('report.index') }}" id="filterForm"
-                            class="d-flex align-items-center gap-2">
+                            class="d-flex align-items-center gap-2 ms-auto">
                             @if (auth()->user()->role->name !== 'Seller')
                                 <select name="user_id" class="form-select px-3 py-2 select2">
                                     <option value="">-- All Sellers --</option>
@@ -38,12 +45,14 @@
                                         placeholder="Date Range" value="{{ request('date_range') }}">
                                 </div>
                             </div>
+
                             <input type="text" name="search" value="{{ request('search') }}"
                                 class="form-control px-2 py-2" placeholder="Search ....">
 
                             <button class="btn btn-outline-secondary px-4" type="submit" id="btnsearch">
                                 <i class="fas fa-search"></i>
                             </button>
+                            
                             <button type="button" class="btn btn-danger" onclick="resetFilters()">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -52,9 +61,7 @@
 
                     {{-- Success Message --}}
                     @if (session('status'))
-                        <div class="alert alert-success mt-2">
-                            {{ session('status') }}
-                        </div>
+                        <div class="alert alert-success mt-2">{{ session('status') }}</div>
                     @endif
 
                     {{-- Table --}}
@@ -63,11 +70,51 @@
                             <thead class="table-light">
                                 <tr>
                                     <th>Seller</th>
-                                    <th>Unit Sale</th>
-                                    <th>Revenue</th>
-                                    <th>Basecost</th>
+                                    <th>
+                                        <a
+                                            href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'unit_sale_desc' ? 'unit_sale_asc' : 'unit_sale_desc'])) }}">
+                                            Unit Sale
+                                            @if (request('sort') === 'unit_sale_asc')
+                                                ▲
+                                            @elseif (request('sort') === 'unit_sale_desc')
+                                                ▼
+                                            @endif
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <a
+                                            href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'revenue_desc' ? 'revenue_asc' : 'revenue_desc'])) }}">
+                                            Revenue
+                                            @if (request('sort') === 'revenue_asc')
+                                                ▲
+                                            @elseif (request('sort') === 'revenue_desc')
+                                                ▼
+                                            @endif
+                                        </a>
+                                    </th>
+                                    <th>
+                                        <a
+                                            href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'base_cost_desc' ? 'base_cost_asc' : 'base_cost_desc'])) }}">
+                                            Basecost
+                                            @if (request('sort') === 'base_cost_asc')
+                                                ▲
+                                            @elseif (request('sort') === 'base_cost_desc')
+                                                ▼
+                                            @endif
+                                        </a>
+                                    </th>
                                     <th>Chi phí Ads</th>
-                                    <th>Profit</th>
+                                    <th>
+                                        <a
+                                            href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'profit_desc' ? 'profit_asc' : 'profit_desc'])) }}">
+                                            Profit
+                                            @if (request('sort') === 'profit_asc')
+                                                ▲
+                                            @elseif (request('sort') === 'profit_desc')
+                                                ▼
+                                            @endif
+                                        </a>
+                                    </th>
                                     <th>Ads/Profit (%)</th>
                                     <th>Bonus</th>
                                 </tr>
@@ -79,14 +126,16 @@
                                         <td>{{ $report->unit_sale }}</td>
                                         <td>{{ $report->revenue }}</td>
                                         <td>{{ $report->base_cost }}</td>
-                                        <td>
-                                            {{ $report->ads }}
-                                            @if (auth()->user()->role->name !== 'Seller' && $report->userInfo)
-                                                <button type="button" class="btn btn-sm ms-2"
-                                                    onclick="openEditReportModal({{ $report->id }}, '{{ $report->ads }}', {{ $report->userInfo->id }})">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                            @endif
+                                        <td class="text-start">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <span>{{ $report->ads }}</span>
+                                                @if (auth()->user()->role->name !== 'Seller' && $report->userInfo)
+                                                    <button type="button" class="btn btn-sm btn-light"
+                                                        onclick="openEditReportModal({{ $report->id }}, '{{ $report->ads }}', {{ $report->userInfo->id }})">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                @endif
+                                            </div>
                                         </td>
                                         <td>{{ $report->profit }}</td>
                                         <td>
@@ -96,7 +145,6 @@
                                                         ? round(($report->ads / $report->profit) * 100, 2)
                                                         : 0;
                                             @endphp
-
                                             @if ($percent > 25)
                                                 <span style="color:red">{{ $percent }}%</span>
                                             @else
@@ -140,7 +188,7 @@
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Ngày</label>
-                            <input type="date" name="date" id="edit_date" class="form-control" required>
+                            <input type="text" name="date" id="edit_date" class="form-control flatpickr" required>
                         </div>
 
                         <div class="mb-3">
@@ -159,8 +207,42 @@
         </div>
     </div>
 
+    {{-- Modal Import Ads --}}
+    <div class="modal fade" id="importAdsModal" tabindex="-1" aria-labelledby="importAdsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form method="POST" action="{{ route('ads-fee.import') }}" enctype="multipart/form-data"
+                class="modal-content shadow-sm border-0">
+                @csrf
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">Import chi phí Ads từ Excel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <div class="mb-3">
+                        <label for="ads_excel" class="form-label fw-bold">File Excel (.xlsx)</label>
+                        <input type="file" name="ads_excel" id="ads_excel" class="form-control" accept=".xlsx"
+                            required>
+                    </div>
+                    <div class="form-text text-muted">
+                        Cột đầu tiên là tên Seller. Các cột sau là các ngày theo định dạng <code>Apr-24</code>,
+                        <code>Apr-25</code>, ...
+                    </div>
+                </div>
+                <div class="modal-footer px-4">
+                    <button type="submit" class="btn btn-success">Import</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     @push('scripts')
         <script src="/js/report.js"></script>
+        <script>
+            flatpickr("#edit_date", {
+                dateFormat: "Y-m-d"
+            });
+        </script>
     @endpush
 @endsection

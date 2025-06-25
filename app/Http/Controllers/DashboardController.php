@@ -63,16 +63,21 @@ class DashboardController extends Controller
         $thisMonthRevenue = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])->sum('total');
         $thisMonthCost = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])->sum('cost');
 
-        // Top seller, shop
-        $topSellers = $this->fetchTopSellers($from, $to, false); // false vì không phân quyền
-
-        $topShops = Order::selectRaw('shop_name, COUNT(*) as total_orders')
-            ->groupBy('shop_name')
-            ->orderByDesc('total_orders')
-            ->limit(5)
-            ->get();
-
         $totalSellers = User::whereHas('role')->count();
+
+        $topSellers = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])
+            ->select('user_id', DB::raw('SUM(quantity) as total_units'))
+            ->groupBy('user_id')
+            ->orderByDesc('total_units')
+            ->take(10)
+            ->with('seller')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->seller->name ?? 'Unknown',
+                    'score' => $item->total_units,
+                ];
+            });
 
         return view('pages.dashboard', compact(
             'totalSellers',
@@ -92,58 +97,7 @@ class DashboardController extends Controller
             'thisMonthOrders',
             'thisMonthRevenue',
             'thisMonthCost',
-            'topShops',
             'topSellers',
-            'from',
-            'to'
         ));
-    }
-
-
-    private function fetchTopSellers($from, $to, $isUserRole)
-    {
-        if ($isUserRole)
-            return collect();
-
-        return DB::table('orders')
-            ->join('seller_has_shop', 'orders.shop_name', '=', 'seller_has_shop.shop_name')
-            ->join('users', 'orders.user_id', '=', 'users.id')
-            ->whereBetween('orders.created_at', [
-                Carbon::parse($from)->startOfDay(),
-                Carbon::parse($to)->endOfDay()
-            ])
-            ->select(
-                'users.name as seller_name',
-                DB::raw('SUM(orders.total) as total_revenue'),
-                DB::raw('SUM(orders.cost) as total_cost'),
-                DB::raw('SUM(orders.total - orders.cost) as profit')
-            )
-            ->groupBy('users.name')
-            ->orderByDesc('profit')
-            ->limit(5)
-            ->get();
-    }
-
-    public function getTopSellers(Request $request)
-    {
-        $from = Carbon::parse($request->input('from'))->startOfDay();
-        $to = Carbon::parse($request->input('to'))->endOfDay();
-
-        $topSellers = DB::table('orders')
-            ->join('seller_has_shop', 'orders.shop_name', '=', 'seller_has_shop.shop_name')
-            ->join('users', 'orders.user_id', '=', 'users.id')
-            ->whereBetween('orders.created_at', [$from, $to])
-            ->select(
-                'users.name as seller_name',
-                DB::raw('SUM(orders.total) as total_revenue'),
-                DB::raw('SUM(orders.cost) as total_cost'),
-                DB::raw('SUM(orders.total - orders.cost) as profit')
-            )
-            ->groupBy('users.name')
-            ->orderByDesc('profit')
-            ->limit(5)
-            ->get();
-
-        return response()->json($topSellers);
     }
 }

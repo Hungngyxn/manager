@@ -53,6 +53,8 @@ class CheckAccess
             return redirect()->route('dashboard');
         }
 
+        session()->put('access_level', $accessType);
+
         return $next($request);
     }
 }

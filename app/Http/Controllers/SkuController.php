@@ -92,7 +92,7 @@ class SkuController extends Controller
             'cost' => 'required|numeric|min:0',
             'name' => 'required|max:255',
             'quantity' => 'required|numeric|min:0',
-            'tier' => 'required|numeric|min:0',
+            'tier' => 'required',
         ]);
 
         $updateScope = $request->input('update_scope', 'all');

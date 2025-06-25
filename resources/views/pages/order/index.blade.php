@@ -67,8 +67,10 @@
                         </button>
                     </form>
 
+                    {{-- Import/Export Buttons --}}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap pt-3">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
+                            {{-- Import Dropdown --}}
                             <div class="btn-group">
                                 <button class="btn btn-outline-dark btn-md dropdown-toggle px-4 py-2" type="button"
                                     data-bs-toggle="dropdown" aria-expanded="false">
@@ -90,19 +92,15 @@
                                         </form>
                                     </li>
                                     <li>
-                                        <form action="{{ route('orders.import.fulfill_fee') }}" method="POST"
-                                            enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0">
-                                            @csrf
-                                            <label class="dropdown-item d-block">
-                                                <i class="fas fa-upload me-1"></i> Import Fulfill Fee (Tối đa 20 file)
-                                                <input type="file" name="file" accept=".xlsx,.xls"
-                                                    onchange="handleImport(this)" hidden>
-                                            </label>
-                                        </form>
+                                        <button type="button" class="dropdown-item" data-bs-toggle="modal"
+                                            data-bs-target="#addFulfillModal">
+                                            <i class="fas fa-truck me-1"></i> Add Fulfill Fee
+                                        </button>
                                     </li>
                                 </ul>
                             </div>
 
+                            {{-- Export Dropdown --}}
                             <div class="btn-group">
                                 <button class="btn btn-outline-dark btn-md dropdown-toggle px-4 py-2" type="button"
                                     data-bs-toggle="dropdown" aria-expanded="false">
@@ -118,6 +116,7 @@
                                 </ul>
                             </div>
 
+                            {{-- Delete --}}
                             @if ($isAdmin)
                                 <form method="POST" action="{{ route('orders.delete') }}" id="deleteForm">
                                     @csrf
@@ -131,12 +130,7 @@
                         </div>
                     </div>
 
-                    @if (session('success'))
-                        <div class="alert alert-success">{{ session('success') }}</div>
-                    @endif
-                    @if (session('error'))
-                        <div class="alert alert-danger">{{ session('error') }}</div>
-                    @endif
+                    {{-- Spinner --}}
                     <div id="importSpinner" class="text-center my-3" style="display: none;">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
@@ -144,6 +138,7 @@
                         <p class="mt-2">Đang xử lý file Excel, vui lòng chờ...</p>
                     </div>
 
+                    {{-- Table --}}
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover text-center align-middle">
                             <thead class="table text-uppercase">
@@ -177,11 +172,10 @@
                                         </td>
                                         <td>
                                             @if (Str::contains($order->shop_name, 'Chưa được add'))
-                                                <span class="badge bg-danger"
-                                                    style="font-size: 85%;">{{ $order->shop_name }}</span>
-                                                <br>
+                                                <span class="badge bg-danger">{{ $order->shop_name }}</span><br>
                                                 <a href="{{ route('shop.create') }}"
-                                                    class="btn btn-sm btn-primary mt-1">+ Add Shop</a>
+                                                    class="btn btn-sm btn-primary mt-1">+
+                                                    Add Shop</a>
                                             @else
                                                 {{ $order->shop_name }}
                                             @endif
@@ -192,14 +186,17 @@
                                         <td>{{ $order->fulfill_fee }}</td>
                                         <td>{{ $order->profit }}</td>
                                         <td>
+                                            {{-- Edit --}}
                                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
                                                 data-bs-target="#editModal" type="button"
-                                                onclick="openEditModal({{ $order->id }}, {{ addslashes($order->extra_id) }}, '{{ addslashes($order->sku) }}', {{ $order->quantity }}, {{ $order->total }}, {{ $order->fulfill_fee ?? 0 }})">
+                                                onclick="openEditModal({{ $order->id }}, '{{ addslashes($order->extra_id) }}', '{{ addslashes($order->sku) }}', {{ $order->quantity }}, {{ $order->total }}, {{ $order->fulfill_fee ?? 0 }})">
                                                 <i class="fas fa-edit"></i>
                                             </button>
+
+                                            {{-- Delete --}}
                                             <form action="{{ route('orders.destroy', $order->id) }}" method="POST"
                                                 class="d-inline"
-                                                onsubmit="return confirm('Are you sure you want to delete this shop?')">
+                                                onsubmit="return confirm('Are you sure you want to delete this order?')">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -217,23 +214,20 @@
                         </table>
                     </div>
 
-                    {{-- PerPage + Pagination --}}
+                    {{-- Pagination + PerPage --}}
                     <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
                         <form method="GET" action="{{ route('orders.index') }}" class="d-flex align-items-center">
                             @foreach (request()->except('perPage') as $key => $value)
                                 <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                             @endforeach
-
                             <select name="perPage" class="form-select" onchange="this.form.submit()">
                                 @foreach ([10, 20, 50, 100] as $size)
                                     <option value="{{ $size }}"
-                                        {{ request('perPage', 10) == $size ? 'selected' : '' }}>
-                                        {{ $size }}
+                                        {{ request('perPage', 10) == $size ? 'selected' : '' }}>{{ $size }}
                                     </option>
                                 @endforeach
                             </select>
                         </form>
-
                         <div>
                             {{ $orders->appends(request()->only(['search', 'perPage', 'user_id', 'shop_name', 'date_start', 'date_end', 'missing_sku']))->links() }}
                         </div>
@@ -333,10 +327,46 @@
         </div>
     </div>
 
+    {{-- Modal Add Fulfill Fee --}}
+    <div class="modal fade" id="addFulfillModal" tabindex="-1" aria-labelledby="addFulfillModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Thêm Fulfill Fee</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4">
+                    <div class="mb-3">
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('orders.download-sample') }}">
+                            <i class="fas fa-download me-2 text-success"></i> Tải file mẫu
+                        </a>
+                    </div>
+                    <form action="{{ route('orders.import.fulfill_fee') }}" method="POST" enctype="multipart/form-data"
+                        id="fulfillFeeForm">
+                        @csrf
+                        <div class="mb-3">
+                            <label for="fulfill_fee_file" class="form-label">Chọn file Excel (.xlsx/.xls)</label>
+                            <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
+                        </div>
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-upload me-1"></i> Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Scripts --}}
     @push('scripts')
         <script src="/js/order.js"></script>
+        <script>
+            document.getElementById('fulfillFeeForm')?.addEventListener('submit', function() {
+                document.getElementById('importSpinner').style.display = 'block';
+            });
+        </script>
     @endpush
-    <script>
-        const skuInfo = @json($orders);
-    </script>
 @endsection

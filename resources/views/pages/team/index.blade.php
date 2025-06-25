@@ -17,13 +17,13 @@
                     {{-- Toolbar --}}
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            @if (Auth::user()->role->name !== 'Seller')
+                            @canEdit
                                 {{-- Add Team Button (opens modal) --}}
                                 <button class="btn btn-outline-dark px-4 py-2" data-bs-toggle="modal"
                                     data-bs-target="#addTeamModal">
                                     <i class="fas fa-plus me-2"></i> Add Team
                                 </button>
-                            @endif
+                            @endcanEdit
                         </div>
                     </div>
 

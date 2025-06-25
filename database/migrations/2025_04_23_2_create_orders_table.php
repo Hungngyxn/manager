@@ -18,6 +18,7 @@ class CreateOrdersTable extends Migration
             $table->string('shop_cipher');
             $table->integer('quantity');
             $table->decimal('cost', 10, 2);
+            $table->decimal('fulfill_fee', 10, 1);
             $table->decimal('total', 10, 2);
             $table->decimal('profit', 10, 2);
             $table->decimal('bonus', 10, 2);

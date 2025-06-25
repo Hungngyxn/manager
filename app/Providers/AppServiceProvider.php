@@ -8,6 +8,7 @@ use App\Models\Access;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Blade;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -29,6 +30,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Paginator::useBootstrap();
+
+        Blade::if('canEdit', function () {
+            return session('access_level', 0) > 1;
+        });
+
+        Blade::if('canViewOnly', function () {
+            return session('access_level', 0) == 1;
+        });
 
         View::composer('*', function ($view) {
             if (auth()->check()) {

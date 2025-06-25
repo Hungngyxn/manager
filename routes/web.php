@@ -85,7 +85,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/import-fulfill-fee', [OrderController::class, 'importFulfillFee'])->name('import.fulfill_fee');
         Route::post('/export', [OrderController::class, 'export'])->name('export');
         Route::delete('/delete', [OrderController::class, 'delete'])->name('delete');
-
+        Route::get('/sample-file', [OrderController::class, 'downloadSample'])->name('download-sample');
         Route::get('/sync', [OrderController::class, 'sync'])->name('sync');
 
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
@@ -100,7 +100,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
         Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
-        Route::get('/shop/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
+        Route::get('/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
@@ -133,4 +133,6 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
 
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');
     Route::get('/ads-fee/fetch', [AdsFeeController::class, 'fetch'])->name('ads-fee.fetch');
+    Route::post('/ads-fee/import', [AdsFeeController::class, 'import'])->name('ads-fee.import');
+
 });

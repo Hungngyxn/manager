@@ -20,7 +20,7 @@ class UsersController extends Controller
 
     public function index(Request $request)
     {
-        $query = User::with('role');
+        $query = User::with(['role', 'team']);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -30,11 +30,16 @@ class UsersController extends Controller
             });
         }
 
-        $users = $query->paginate(10)->appends($request->only('search'));
+        if ($request->filled('team')) {
+            $query->where('team_id', $request->team);
+        }
+
+        $users = $query->paginate(10)->appends($request->only('search', 'team'));
         $teams = Team::all();
 
         return view('pages.user.index', compact('users', 'teams'));
     }
+
 
     public function create()
     {
@@ -79,7 +84,7 @@ class UsersController extends Controller
     public function show($id)
     {
         $user = User::with('role')->findOrFail($id);
-        
+
         return view('pages.user.show', compact('user'));
     }
 
@@ -117,7 +122,7 @@ class UsersController extends Controller
             return redirect()->route('user.index')->with('status', 'User updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return redirect()->route('user.index')->with('error', 'Failed to update user: ' . $e->getMessage());
         }
     }
