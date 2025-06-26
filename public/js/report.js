@@ -29,10 +29,9 @@ function fetchAdsFee(userId, date) {
         });
 }
 
-function openEditReportModal(reportId, _adsIgnore, userId) {
+function openEditReportModal( _adsIgnore, userId) {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-    document.getElementById("edit_report_id").value = reportId;
     document.getElementById("edit_date").value = today;
 
     const userSelect = document.getElementById("edit_user_id");

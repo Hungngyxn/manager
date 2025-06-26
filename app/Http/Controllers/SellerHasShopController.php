@@ -87,19 +87,34 @@ class SellerHasShopController extends Controller
                 'shop_code' => $request->shop_code ?? null,
             ]);
 
-            Order::where('shop_name', 'like', $request->shop_name . '%')
-                ->update(['shop_name' => $shop->shop_name, 'user_id' => $shop->user_id]);
+            // 👉 Update lại user_id cho các đơn hàng cũ
+            $affectedOrders = Order::where('shop_name', 'like', $request->shop_name . '%')->get();
+
+            foreach ($affectedOrders as $order) {
+                $order->update([
+                    'shop_name' => $shop->shop_name,
+                    'user_id' => $shop->user_id,
+                ]);
+            }
+
+            // 👉 Gọi lại tính toán report cho các ngày bị ảnh hưởng
+            $dates = $affectedOrders
+                ->pluck('created_at')
+                ->map(fn($dt) => $dt->toDateString())
+                ->unique();
+
+            foreach ($dates as $date) {
+                ReportController::aggregateForDate($shop->user_id, $date);
+            }
 
             DB::commit();
 
-            return redirect()->route('shop.index')->with('success', 'Shop created successfully.');
+            return redirect()->route('shop.index')->with('success', 'Shop created and reports updated successfully.');
         } catch (QueryException $e) {
             DB::rollBack();
-
             return redirect()->route('shop.index')->with('error', 'Failed to create shop. Maybe duplicated shop name or code.');
         } catch (\Exception $e) {
             DB::rollBack();
-
             return redirect()->route('shop.index')->with('error', 'Unexpected error: ' . $e->getMessage());
         }
     }

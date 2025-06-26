@@ -131,7 +131,7 @@
                                                 <span>{{ $report->ads }}</span>
                                                 @if (auth()->user()->role->name !== 'Seller' && $report->userInfo)
                                                     <button type="button" class="btn btn-sm btn-light"
-                                                        onclick="openEditReportModal({{ $report->id }}, '{{ $report->ads }}', {{ $report->userInfo->id }})">
+                                                        onclick="openEditReportModal('{{ $report->ads }}', {{ $report->userInfo->id }})">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                 @endif
@@ -188,7 +188,7 @@
 
                         <div class="mb-3">
                             <label class="form-label fw-bold">Ngày</label>
-                            <input type="text" name="date" id="edit_date" class="form-control flatpickr" required>
+                            <input type="date" name="date" id="edit_date" class="form-control flatpickr" required>
                         </div>
 
                         <div class="mb-3">

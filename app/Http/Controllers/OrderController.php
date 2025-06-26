@@ -183,6 +183,8 @@ class OrderController extends Controller
 
 			$sku->decrement('quantity', $validated['quantity']);
 
+			ReportController::aggregateForDate($order->user_id, $order->created_at->toDateString());
+
 			DB::commit();
 
 			return redirect()->route('orders.index')->with('status', 'Order created successfully!');
@@ -212,6 +214,7 @@ class OrderController extends Controller
 
 		try {
 			$sku = Sku::where('sku', $validated['sku'])->firstOrFail();
+			
 			$service = new OrderService($sku, $validated['quantity'], $validated['total'], $validated['fulfill_fee']);
 			$calc = $service->calculate();
 
@@ -223,6 +226,8 @@ class OrderController extends Controller
 			$order->bonus = $calc['bonus'];
 
 			$order->save();
+
+			ReportController::aggregateForDate($order->user_id, $order->created_at->toDateString());
 
 			DB::commit();
 
@@ -289,6 +294,7 @@ class OrderController extends Controller
 
 		$skippedCodes = [];
 
+		
 		foreach ($request->file('file') as $uploadedFile) {
 			$orders = new OrderImport();
 
@@ -298,6 +304,7 @@ class OrderController extends Controller
 				if (!empty($orders->skipped)) {
 					$skippedCodes = array_merge($skippedCodes, $orders->skipped);
 				}
+				
 			} catch (\Exception $e) {
 				return redirect()->route('orders.index')->with('error', 'Import thất bại: ' . $e->getMessage());
 			}

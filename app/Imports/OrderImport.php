@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Http\Controllers\ReportController;
 use App\Models\Order;
 use App\Models\Sku;
 use App\Models\SellerHasShop;
@@ -27,12 +28,26 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
     {
         DB::beginTransaction();
 
+        $affectedUsersAndDates = [];
+        $hasValidOrders = false;
+
         try {
-            $grouped = $rows->groupBy(function ($row) {
-                return $row['order_id'] . '___' . $row['seller_sku'] . '___' . $row['sku_id'];
-            });
+            $existingKeys = array_flip(
+                Order::selectRaw("LOWER(CONCAT(extra_id, '___', sku, '___', order_id)) AS composite_key")
+                    ->pluck('composite_key')
+                    ->toArray()
+            );
+
+            $grouped = $rows->groupBy(fn($row) => $row['order_id'] . '___' . $row['seller_sku'] . '___' . $row['sku_id']);
 
             foreach ($grouped as $key => $groupRows) {
+                $normalizedKey = strtolower($key);
+
+                if (isset($existingKeys[$normalizedKey])) {
+                    $this->skipped[] = $key . ' (duplicate)';
+                    continue;
+                }
+
                 $firstRow = $groupRows->first();
 
                 if (!empty($firstRow['cancelation_return_type'])) {
@@ -49,7 +64,6 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     continue;
                 }
 
-                // 👉 Lấy Created Time từ Excel và parse
                 $createdTimeRaw = $firstRow['created_time'] ?? null;
                 try {
                     $createdAt = $createdTimeRaw
@@ -62,14 +76,15 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
                 $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
                 $parsed = $this->parseSkuWithPack($rawSku, $originalQty);
-                $this->calculated[] = $parsed;
                 $skuCode = $parsed['sku'];
                 $quantity = $parsed['quantity'];
 
-                if (Order::where('extra_id', $extraId)->where('sku', $skuCode)->where('order_id', $orderId)->exists()) {
-                    $this->skipped[] = $extraId . ' - ' . $skuCode;
+                if (empty($skuCode)) {
+                    $this->skipped[] = $extraId . ' - ' . $rawSku . ' (empty SKU)';
                     continue;
                 }
+
+                $this->calculated[] = $parsed;
 
                 $total = $groupRows->sum(function ($row) {
                     return floatval($row['sku_subtotal_before_discount'] - $row['sku_seller_discount'] - $row['shipping_fee_seller_discount']);
@@ -102,21 +117,33 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     'user_id' => $userId,
                 ]);
 
-                $order->forceFill([
-                    'created_at' => $createdAt,
-                ])->save();
+                $order->forceFill(['created_at' => $createdAt])->save();
+
+                $hasValidOrders = true;
+
+                if (is_numeric($userId)) {
+                    $affectedUsersAndDates[] = [$userId, $createdAt->toDateString()];
+                }
             }
 
-            DB::commit();
+            if ($hasValidOrders) {
+                DB::commit();
+
+                foreach ($affectedUsersAndDates as [$userId, $date]) {
+                    ReportController::aggregateForDate($userId, $date);
+                }
+            } else {
+                DB::rollBack();
+            }
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e;
+            $this->skipped[] = 'File import bị lỗi hoặc trùng ';
         }
     }
 
+
     protected function parseSkuWithPack(string $rawSku, int $originalQuantity): array
     {
-        // Nếu SKU gốc tồn tại → giữ nguyên
         if (Sku::where('sku', $rawSku)->exists()) {
             return [
                 'sku' => $rawSku,
@@ -127,14 +154,10 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
         $packQty = 1;
         $cleanSku = $rawSku;
 
-        // 👉 Xử lý "pack" ở đầu
         if (preg_match('/^(pack)?(\d+)(pack)?[_-]/i', $rawSku, $matches)) {
             $packQty = (int) $matches[2];
             $cleanSku = preg_replace('/^(pack)?\d+(pack)?[_-]/i', '', $rawSku);
-        }
-
-        // 👉 Xử lý "pack" ở cuối
-        elseif (preg_match('/[_-](pack)?(\d+)(pack)?$/i', $rawSku, $matches)) {
+        } elseif (preg_match('/[_-](pack)?(\d+)(pack)?$/i', $rawSku, $matches)) {
             $packQty = (int) $matches[2];
             $cleanSku = preg_replace('/[_-](pack)?\d+(pack)?$/i', '', $rawSku);
         }
@@ -144,5 +167,4 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
             'quantity' => $originalQuantity * $packQty,
         ];
     }
-
 }

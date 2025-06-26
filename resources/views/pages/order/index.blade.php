@@ -138,6 +138,14 @@
                         <p class="mt-2">Đang xử lý file Excel, vui lòng chờ...</p>
                     </div>
 
+                    {{-- Alerts --}}
+                    @if (session('status'))
+                        <div class="alert alert-success">{{ session('status') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="alert alert-danger">{{ session('error') }}</div>
+                    @endif
+
                     {{-- Table --}}
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover text-center align-middle">
