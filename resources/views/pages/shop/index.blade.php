@@ -29,7 +29,7 @@
                                 <ul class="dropdown-menu">
                                     <li>
                                         <a class="dropdown-item" href="{{ route('shop.download-sample') }}">
-                                            <i class="fas fa-download me-2 text-success"></i> Tải file mẫu
+                                            <i class="fas fa-download me-2 text-success"></i> Download sample file
                                         </a>
                                     </li>
                                     <li>
@@ -37,7 +37,7 @@
                                             enctype="multipart/form-data" id="importForm">
                                             @csrf
                                             <label class="dropdown-item mb-0" style="cursor: pointer;">
-                                                <i class="fas fa-upload me-2 text-primary"></i> Chọn file để import
+                                                <i class="fas fa-upload me-2 text-primary"></i> Choose file to import
                                                 <input type="file" name="file" accept=".xlsx,.xls"
                                                     onchange="handleImport(this)" hidden>
                                             </label>
@@ -48,7 +48,7 @@
 
                             <button type="button" class="btn btn-outline-primary px-3 py-2" data-bs-toggle="modal"
                                 data-bs-target="#connectTikTokModal" hidden>
-                                <i class="fab fa-tiktok me-2"></i> Kết nối TikTok Shop
+                                <i class="fab fa-tiktok me-2"></i> Connect TikTok Shop
                             </button>
                         </div>
                         @endcanEdit
@@ -90,7 +90,7 @@
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p class="mt-2">Đang xử lý file Excel, vui lòng chờ...</p>
+                        <p class="mt-2">Processing Excel file, please wait...</p>
                     </div>
 
                     {{-- Table --}}
@@ -101,12 +101,13 @@
                                     <th>#</th>
                                     <th>Shop Name</th>
                                     <th>Shop Code</th>
+                                    <th>Email</th>
                                     <th>Bank</th>
                                     <th>On Hold</th>
                                     <th>Payout</th>
                                     <th>Seller</th>
                                     @canEdit
-                                        <th>Actions</th>
+                                    <th>Actions</th>
                                     @endcanEdit
                                 </tr>
                             </thead>
@@ -116,33 +117,34 @@
                                         <td>{{ $loop->iteration + $shops->firstItem() - 1 }}</td>
                                         <td>{{ $shop->shop_name }}</td>
                                         <td>{{ $shop->shop_code }}</td>
+                                        <td>{{ $shop->email }}</td>
                                         <td>{{ $shop->bank }}</td>
                                         <td>{{ $shop->on_hold }}</td>
                                         <td>{{ $shop->payout }}</td>
                                         <td>{{ optional($shop->seller)->name ?? 'Unassigned' }}</td>
                                         @canEdit
-                                            <td>
-                                                <button type="button" class="btn btn-sm btn-outline-primary"
-                                                    onclick="openEditModal({{ $shop->id }}, '{{ addslashes($shop->shop_name) }}', '{{ $shop->shop_code }}', '{{ $shop->user_id }}', '{{ $shop->on_hold }}', '{{ $shop->payout }}')">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                onclick="openEditModal({{ $shop->id }}, '{{ addslashes($shop->shop_name) }}', '{{ $shop->shop_code }}', '{{ $shop->email }}', '{{ $shop->user_id }}', '{{ $shop->on_hold }}', '{{ $shop->payout }}')">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
 
-                                                <form action="{{ route('shop.destroy', $shop->id) }}" method="POST"
-                                                    class="d-inline"
-                                                    onsubmit="return confirm('Are you sure you want to delete this shop?')">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i
-                                                            class="fas fa-trash"></i></button>
-                                                </form>
+                                            <form action="{{ route('shop.destroy', $shop->id) }}" method="POST"
+                                                class="d-inline"
+                                                onsubmit="return confirm('Are you sure you want to delete this shop?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger"><i
+                                                        class="fas fa-trash"></i></button>
+                                            </form>
 
-                                                <a href="{{ route('tiktok.reconnect', $shop->id) }}"
-                                                    class="btn btn-sm btn-outline-dark"
-                                                    onclick="return confirm('Bạn có chắc chắn muốn kết nối lại TikTok Shop này?')"
-                                                    hidden>
-                                                    <i class="fa-solid fa-repeat me-1"></i>
-                                                </a>
-                                            </td>
+                                            <a href="{{ route('tiktok.reconnect', $shop->id) }}"
+                                                class="btn btn-sm btn-outline-dark"
+                                                onclick="return confirm('Are you sure you want to reconnect this TikTok Shop?')"
+                                                hidden>
+                                                <i class="fa-solid fa-repeat me-1"></i>
+                                            </a>
+                                        </td>
                                         @endcanEdit
                                     </tr>
                                 @empty
@@ -154,7 +156,7 @@
                             <tfoot>
                                 <tr>
                                     <td colspan="100%" class="text-end fw-bold">
-                                        Tổng số shop: {{ $totalShops }}
+                                        Total shops: {{ $totalShops }}
                                     </td>
                                 </tr>
                             </tfoot>
@@ -174,8 +176,8 @@
             <div class="modal-dialog">
                 <form method="GET" action="{{ route('tiktok.connect') }}" class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="connectTikTokLabel">Kết nối TikTok Shop</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                        <h5 class="modal-title" id="connectTikTokLabel">Connect TikTok Shop</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group mb-3">
@@ -188,8 +190,8 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary">Kết nối ngay</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary">Connect Now</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </form>
             </div>
@@ -203,23 +205,27 @@
                     @method('PUT')
                     <input type="hidden" name="id" id="editShopId">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="editShopLabel">Chỉnh sửa Shop</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                        <h5 class="modal-title" id="editShopLabel">Edit Shop</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group mb-3">
-                            <label class="fw-bold">Tên Shop</label>
+                            <label class="fw-bold">Shop Name</label>
                             <input type="text" name="shop_name" id="editShopName" class="form-control" required>
                         </div>
                         <div class="form-group mb-3">
-                            <label class="fw-bold">Mã Shop</label>
+                            <label class="fw-bold">Shop Code</label>
                             <input type="text" name="shop_code" id="editShopCode" class="form-control">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="fw-bold">Email</label>
+                            <input type="email" name="email" id="editEmail" class="form-control">
                         </div>
                         <div class="form-group mb-3">
                             <label class="fw-bold">Seller</label>
                             @if (count($sellers))
-                                <select name="user_id" id="editSellerId" class="form-select select2" required>
-                                    <option value="">-- Chọn Seller --</option>
+                                <select name="user_id" id="editSellerId" class="form-select select2-edit" required>
+                                    <option value="">-- Select Seller --</option>
                                     @foreach ($sellers as $seller)
                                         <option value="{{ $seller->id }}">{{ $seller->name }}</option>
                                     @endforeach
@@ -236,8 +242,8 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-success">Lưu</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                        <button type="submit" class="btn btn-success">Save</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </form>
             </div>

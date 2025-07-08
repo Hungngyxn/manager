@@ -11,17 +11,6 @@ use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Login Controller
-    |--------------------------------------------------------------------------
-    |
-    | This controller handles authenticating users for the application and
-    | redirecting them to your home screen. The controller uses a trait
-    | to conveniently provide its functionality to your applications.
-    |
-    */
-
     use AuthenticatesUsers;
 
     /**
@@ -32,9 +21,12 @@ class LoginController extends Controller
     protected $redirectTo = RouteServiceProvider::HOME;
 
     /**
+     * Cached user during login attempt.
+     */
+    protected $checkedUser = null;
+
+    /**
      * Create a new controller instance.
-     *
-     * @return void
      */
     public function __construct()
     {
@@ -43,37 +35,36 @@ class LoginController extends Controller
 
     /**
      * Validate the user login request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
      */
-
     protected function validateLogin(Request $request)
     {
-        $user = User::where('email', $request->email)->first();
         $request->validate([
             $this->username() => 'required|string',
             'password' => 'required|string',
         ]);
     }
 
+    /**
+     * Get the needed authorization credentials from the request.
+     */
     protected function credentials(Request $request)
     {
         return [
             'email' => $request->email,
             'password' => $request->password,
-            'status' => true
+            'status' => true, // Only allow active users
         ];
     }
 
+    /**
+     * Attempt to log the user into the application.
+     */
     protected function attemptLogin(Request $request)
     {
-        $user = \App\Models\User::where('email', $request->email)->first();
+        $this->checkedUser = User::where('email', $request->email)->first();
 
-        if ($user && !$user->status) {
-            // Người dùng bị deactivate
+        if ($this->checkedUser && !$this->checkedUser->status) {
+            // User exists but is inactive
             return false;
         }
 
@@ -83,13 +74,16 @@ class LoginController extends Controller
         );
     }
 
+    /**
+     * Get the failed login response instance.
+     */
     protected function sendFailedLoginResponse(Request $request)
     {
-        $user = User::where('email', $request->email)->first();
+        $user = $this->checkedUser ?? User::where('email', $request->email)->first();
 
         if ($user && !$user->status) {
             throw ValidationException::withMessages([
-                'email' => [__('Tài khoản của bạn đã bị vô hiệu hóa.')],
+                'email' => [__('Your account has been inactived. Please contact the administrator.')],
             ]);
         }
 
@@ -97,5 +91,4 @@ class LoginController extends Controller
             $this->username() => [trans('auth.failed')],
         ]);
     }
-
 }

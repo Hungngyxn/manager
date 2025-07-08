@@ -12,7 +12,7 @@ class CheckUserStatus
     {
         if (Auth::check() && Auth::user()->status === false) {
             Auth::logout();
-            return redirect()->route('login')->withErrors(['email' => 'Tài khoản đã bị vô hiệu hóa.']);
+            return redirect()->route('login')->withErrors(['email' => 'Your account has been inactived. Please contact the administrator.']);
         }
 
         return $next($request);

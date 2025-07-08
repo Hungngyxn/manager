@@ -45,6 +45,11 @@
                             <input type="text" id="shop_code" name="shop_code" class="form-control">
                         </div>
 
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-bold">Email (Optional)</label>
+                            <input type="text" id="email" name="email" class="form-control">
+                        </div>
+
                         {{-- Submit --}}
                         <div class="d-flex justify-content-end">
                             <button type="submit" class="btn btn-primary">

@@ -12,7 +12,8 @@
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="bg-light text-dark card p-4 shadow-sm rounded">
-                    {{-- Nút Import và Bộ lọc --}}
+
+                    {{-- Import Button & Filters --}}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
                         @canEdit
                         <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importAdsModal">
@@ -52,7 +53,7 @@
                             <button class="btn btn-outline-secondary px-4" type="submit" id="btnsearch">
                                 <i class="fas fa-search"></i>
                             </button>
-                            
+
                             <button type="button" class="btn btn-danger" onclick="resetFilters()">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -95,7 +96,7 @@
                                     <th>
                                         <a
                                             href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'base_cost_desc' ? 'base_cost_asc' : 'base_cost_desc'])) }}">
-                                            Basecost
+                                            Base Cost
                                             @if (request('sort') === 'base_cost_asc')
                                                 ▲
                                             @elseif (request('sort') === 'base_cost_desc')
@@ -103,7 +104,7 @@
                                             @endif
                                         </a>
                                     </th>
-                                    <th>Chi phí Ads</th>
+                                    <th>Ads Cost</th>
                                     <th>
                                         <a
                                             href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'profit_desc' ? 'profit_asc' : 'profit_desc'])) }}">
@@ -116,7 +117,9 @@
                                         </a>
                                     </th>
                                     <th>Ads/Profit (%)</th>
+                                    @canEdit
                                     <th>Bonus</th>
+                                    @endcanEdit
                                 </tr>
                             </thead>
                             <tbody>
@@ -131,7 +134,7 @@
                                                 <span>{{ $report->ads }}</span>
                                                 @if (auth()->user()->role->name !== 'Seller' && $report->userInfo)
                                                     <button type="button" class="btn btn-sm btn-light"
-                                                        onclick="openEditReportModal({{ $report->id }}, '{{ $report->ads }}', {{ $report->userInfo->id }})">
+                                                        onclick="openEditReportModal('{{ $report->ads }}', {{ $report->userInfo->id }})">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                 @endif
@@ -151,7 +154,9 @@
                                                 <span>{{ $percent }}%</span>
                                             @endif
                                         </td>
+                                        @canEdit
                                         <td>{{ $report->bonus }}</td>
+                                        @endcanEdit
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -164,7 +169,7 @@
         </div>
     </div>
 
-    {{-- Modal chỉnh sửa Ads --}}
+    {{-- Edit Ads Modal --}}
     <div class="modal fade" id="editAdsModal" tabindex="-1" aria-labelledby="editAdsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-sm border-0">
@@ -173,12 +178,12 @@
                     <input type="hidden" name="report_id" id="edit_report_id">
 
                     <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title">Cập nhật chi phí Ads theo tháng</h5>
+                        <h5 class="modal-title">Update Ads Cost</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body px-4 py-3">
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Người bán</label>
+                            <label class="form-label fw-bold">Seller</label>
                             <select name="user_id" id="edit_user_id" class="form-select" required>
                                 @foreach ($users as $user)
                                     <option value="{{ $user->id }}">{{ $user->name }}</option>
@@ -187,27 +192,27 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Ngày</label>
-                            <input type="text" name="date" id="edit_date" class="form-control flatpickr" required>
+                            <label class="form-label fw-bold">Date</label>
+                            <input type="date" name="date" id="edit_date" class="form-control flatpickr" required>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-bold">Chi phí Ads</label>
+                            <label class="form-label fw-bold">Ads Cost</label>
                             <input type="number" step="0.01" name="ads" id="edit_ads" class="form-control"
                                 required>
                         </div>
                     </div>
 
                     <div class="modal-footer px-4">
-                        <button type="submit" class="btn btn-success">Lưu thay đổi</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                        <button type="submit" class="btn btn-success">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    {{-- Modal Import Ads --}}
+    {{-- Import Ads Modal --}}
     <div class="modal fade" id="importAdsModal" tabindex="-1" aria-labelledby="importAdsModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -215,23 +220,23 @@
                 class="modal-content shadow-sm border-0">
                 @csrf
                 <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title">Import chi phí Ads từ Excel</h5>
+                    <h5 class="modal-title">Import Ads Cost from Excel</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body px-4 py-3">
                     <div class="mb-3">
-                        <label for="ads_excel" class="form-label fw-bold">File Excel (.xlsx)</label>
+                        <label for="ads_excel" class="form-label fw-bold">Excel File (.xlsx)</label>
                         <input type="file" name="ads_excel" id="ads_excel" class="form-control" accept=".xlsx"
                             required>
                     </div>
                     <div class="form-text text-muted">
-                        Cột đầu tiên là tên Seller. Các cột sau là các ngày theo định dạng <code>Apr-24</code>,
+                        The first column is Seller name. The following columns are dates in format <code>Apr-24</code>,
                         <code>Apr-25</code>, ...
                     </div>
                 </div>
                 <div class="modal-footer px-4">
                     <button type="submit" class="btn btn-success">Import</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 </div>
             </form>
         </div>

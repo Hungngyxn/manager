@@ -19,23 +19,23 @@ class OrderFulfillFeeImport implements ToCollection, WithHeadingRow
             $sku = trim($row['sku'] ?? '');
             $fulfillFeeRaw = $row['fulfill_fee'] ?? null;
 
-            // Kiểm tra thiếu dữ liệu
+            // Check missing data
             if (empty($extraId) || empty($sku)) {
-                $this->skipped[] = "[Thiếu Extra ID hoặc SKU]";
+                $this->skipped[] = "[Missing Extra ID or SKU]";
                 continue;
             }
 
-            // Chuyển đổi fulfill_fee về float (xử lý dấu phẩy)
+            // Convert fulfill_fee to float (handle comma)
             $fulfillFee = is_numeric(str_replace(',', '.', $fulfillFeeRaw))
                 ? floatval(str_replace(',', '.', $fulfillFeeRaw))
                 : null;
 
             if ($fulfillFee === null) {
-                $this->skipped[] = "$extraId / $sku - Fulfill Fee không hợp lệ";
+                $this->skipped[] = "$extraId / $sku - Invalid Fulfill Fee";
                 continue;
             }
 
-            // Tìm đơn hàng theo cặp extra_id + sku
+            // Find order by extra_id + sku
             $order = Order::where('extra_id', $extraId)
                 ->where('sku', $sku)
                 ->first();
@@ -43,13 +43,13 @@ class OrderFulfillFeeImport implements ToCollection, WithHeadingRow
             if ($order) {
                 $order->fulfill_fee = $fulfillFee;
 
-                // Tính lại profit
+                // Recalculate profit
                 $order->profit = $order->total - $order->cost - $fulfillFee;
 
                 $order->save();
                 $this->updated[] = "$extraId / $sku";
             } else {
-                $this->skipped[] = "$extraId / $sku - Không tìm thấy đơn hàng";
+                $this->skipped[] = "$extraId / $sku - Order not found";
             }
         }
     }

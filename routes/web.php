@@ -4,7 +4,9 @@ use App\Http\Controllers\AdsFeeController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SellerHasShopController;
+use App\Http\Controllers\ShopAccountController;
 use App\Http\Controllers\SkuController;
+use App\Http\Controllers\SkuOrderController;
 use App\Http\Controllers\TeamsController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\DashboardController;
@@ -118,6 +120,18 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::delete('/{sku}', [SkuController::class, 'destroy'])->name('destroy');
     });
 
+    //sku-order
+
+    Route::prefix('sku-order')->name('sku-orders.')->group(function () {
+        Route::get('/', [SkuOrderController::class, 'index'])->name('index');
+        Route::get('/create', [SkuOrderController::class, 'create'])->name('create');
+        Route::post('/import', [SkuOrderController::class, 'import'])->name('import');
+        Route::post('/', [SkuOrderController::class, 'store'])->name('store');
+        Route::get('/{sku}/edit', [SkuOrderController::class, 'edit'])->name('edit');
+        Route::put('/{sku}', [SkuOrderController::class, 'update'])->name('update');
+        Route::delete('/{sku}', [SkuOrderController::class, 'destroy'])->name('destroy');
+    });
+
     //Team
     Route::prefix('team')->name('team.')->group(function () {
         Route::get('/', [TeamsController::class, 'index'])->name('index');
@@ -129,6 +143,17 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('report')->name('report.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+    });
+
+    Route::prefix('shop-accounts')->name('shop-accounts.')->group(function () {
+        Route::get('/', [ShopAccountController::class, 'index'])->name('index');
+        Route::get('/create', [ShopAccountController::class, 'create'])->name('create');
+        Route::post('/', [ShopAccountController::class, 'store'])->name('store');
+        Route::post('/import', [ShopAccountController::class, 'importShop'])->name('import');
+        Route::delete('/{account}', [ShopAccountController::class, 'destroy'])->name('destroy');
+        Route::put('/{account}', [ShopAccountController::class, 'update'])->name('update');
+        Route::get('/{account}/edit', [ShopAccountController::class, 'edit'])->name('edit');
+        Route::post('/batch-assign', [ShopAccountController::class, 'batchAssign'])->name('batch-assign');
     });
 
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');

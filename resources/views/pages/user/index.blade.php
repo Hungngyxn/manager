@@ -4,7 +4,7 @@
     <div class="container-fluid mt-2 px-4">
         <div class="row">
             <div class="col-12">
-                <h4 class="font-weight-bold">Users</h4>
+                <h4 class="font-weight-bold">User Management</h4>
                 <hr>
             </div>
         </div>
@@ -13,7 +13,7 @@
             <div class="col-12 mb-3">
                 <div class="bg-light text-dark card p-3 overflow-auto">
 
-                    {{-- Bộ lọc và nút tạo mới --}}
+                    {{-- Filter and Create --}}
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
                         @canEdit
                             <a href="{{ route('user.create') }}" class="btn btn-outline-dark d-flex align-items-center">
@@ -25,7 +25,7 @@
                             class="d-flex align-items-center gap-2 ms-auto">
 
                             <select name="team" class="form-select select2">
-                                <option value="">-- All Team --</option>
+                                <option value="">-- All Teams --</option>
                                 @foreach ($teams as $team)
                                     <option value="{{ $team->id }}"
                                         {{ request('team') == $team->id ? 'selected' : '' }}>
@@ -46,14 +46,14 @@
                         </form>
                     </div>
 
-                    {{-- Thông báo --}}
+                    {{-- Alerts --}}
                     @if (session('status'))
                         <div class="alert alert-success">
                             {{ session('status') }}
                         </div>
                     @endif
 
-                    {{-- Bảng dữ liệu --}}
+                    {{-- Table --}}
                     <table class="table table-light table-striped table-hover table-bordered text-center">
                         <thead>
                             <tr>
@@ -63,7 +63,7 @@
                                 <th class="table-dark">Role</th>
                                 <th class="table-dark">Team</th>
                                 <th class="table-dark">Status</th>
-                                <th class="table-dark">Action</th>
+                                <th class="table-dark">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -84,7 +84,7 @@
                                             @csrf
                                             @method('PUT')
                                             <select name="team_id" class="form-select" onchange="this.form.submit()">
-                                                <option value=""> None </option>
+                                                <option value="">None</option>
                                                 @foreach ($teams as $team)
                                                     <option value="{{ $team->id }}" {{ $user->team_id == $team->id ? 'selected' : '' }}>
                                                         {{ $team->name }}
@@ -107,10 +107,10 @@
                                                 <i class="fas fa-edit"></i>
                                             </a>
 
-                                            {{-- Xóa --}}
+                                            {{-- Delete --}}
                                             <form action="{{ route('user.destroy', $user->id) }}"
                                                 method="POST" style="display: inline-block;"
-                                                onsubmit="return confirm('Bạn có chắc chắn muốn xóa người dùng này?');">
+                                                onsubmit="return confirm('Are you sure you want to delete this user?');">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -118,7 +118,7 @@
                                                 </button>
                                             </form>
 
-                                            {{-- Kích hoạt / Vô hiệu hóa --}}
+                                            {{-- Activate / Deactivate --}}
                                             @if ($user->status)
                                                 <form action="{{ route('user.deactivate', $user->id) }}" method="POST" class="d-inline">
                                                     @csrf
@@ -143,7 +143,7 @@
                         </tbody>
                     </table>
 
-                    {{-- Phân trang --}}
+                    {{-- Pagination --}}
                     {{ $users->links() }}
                 </div>
             </div>

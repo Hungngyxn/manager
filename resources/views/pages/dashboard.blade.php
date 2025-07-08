@@ -111,41 +111,43 @@
                             $third = $topSellers[2] ?? null;
                         @endphp
 
-                        @if ($second)
-                            <div class="col-md-3 col-4 order-1">
-                                <div class="position-relative" style="margin-top: -15px;">
-                                    <img src="{{ asset('images/profile.png') }}" alt="avatar" class="rounded-circle mb-2"
-                                        style="width: 90px; height: 90px;">
-                                    <div class="text-primary fs-5">🥈</div>
-                                    <div class="fw-bold">{{ $second['name'] }}</div>
-                                    <div class="text-primary fs-5 fw-semibold">{{ $second['score'] }}</div>
+                        <div class="row justify-content-center text-center align-items-end mb-5" style="gap: 10px;">
+                            @if ($second)
+                                <div class="col-md-3 col-4 order-0" style="margin-top: 40px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 110px; height: 110px;">
+                                        <div class="text-primary fs-3">🥈</div>
+                                        <div class="fw-bold fs-5">{{ $second['name'] }}</div>
+                                        <div class="text-primary fs-4 fw-semibold">{{ $second['score'] }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        @endif
+                            @endif
 
-                        @if ($first)
-                            <div class="col-md-3 col-4 order-0" style="margin-top: -30px;">
-                                <div class="position-relative">
-                                    <img src="{{ asset('images/profile.png') }}" alt="avatar" class="rounded-circle mb-2"
-                                        style="width: 100px; height: 100px;">
-                                    <div class="text-warning fs-3">👑</div>
-                                    <div class="fw-bold">{{ $first['name'] }}</div>
-                                    <div class="text-warning fs-5 fw-bold">{{ $first['score'] }}</div>
+                            @if ($first)
+                                <div class="col-md-3 col-4 order-1" style="margin-top: 0px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 130px; height: 130px;">
+                                        <div class="text-warning fs-2">👑</div>
+                                        <div class="fw-bold fs-4">{{ $first['name'] }}</div>
+                                        <div class="text-warning fs-3 fw-bold">{{ $first['score'] }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        @endif
+                            @endif
 
-                        @if ($third)
-                            <div class="col-md-3 col-4 order-2">
-                                <div class="position-relative">
-                                    <img src="{{ asset('images/profile.png') }}" alt="avatar" class="rounded-circle mb-2"
-                                        style="width: 80px; height: 80px;">
-                                    <div class="text-success fs-5">🥉</div>
-                                    <div class="fw-bold">{{ $third['name'] }}</div>
-                                    <div class="text-success fs-5 fw-semibold">{{ $third['score'] }}</div>
+                            @if ($third)
+                                <div class="col-md-3 col-4 order-2" style="margin-top: 60px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 100px; height: 100px;">
+                                        <div class="text-success fs-4">🥉</div>
+                                        <div class="fw-bold fs-5">{{ $third['name'] }}</div>
+                                        <div class="text-success fs-4 fw-semibold">{{ $third['score'] }}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        @endif
+                            @endif
+                        </div>
                     </div>
 
                     <div class="table-responsive">

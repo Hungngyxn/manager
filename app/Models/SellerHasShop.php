@@ -17,6 +17,9 @@ class SellerHasShop extends Model
         'shop_code',
         'shop_cipher',
         'bank',
+        'onhold',
+        'payout',
+        'email'
     ];
 
     public function seller()

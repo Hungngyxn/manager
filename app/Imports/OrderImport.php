@@ -2,16 +2,18 @@
 
 namespace App\Imports;
 
+use App\Http\Controllers\ReportController;
 use App\Models\Order;
-use App\Models\Sku;
 use App\Models\SellerHasShop;
+use App\Models\Sku;
+use App\Models\SkuOrder;
 use App\Services\OrderService;
+use Carbon\Carbon;
 use DB;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithStartRow;
-use Carbon\Carbon;
 
 class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 {
@@ -27,12 +29,35 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
     {
         DB::beginTransaction();
 
+        $affectedUsersAndDates = [];
+        $hasValidOrders = false;
+
         try {
+            $existingKeys = array_flip(
+                Order::selectRaw("LOWER(CONCAT(order_id, '___', sku, '___', extra_id)) AS composite_key")
+                    ->pluck('composite_key')
+                    ->toArray()
+            );
+
             $grouped = $rows->groupBy(function ($row) {
-                return $row['order_id'] . '___' . $row['seller_sku'] . '___' . $row['sku_id'];
+                $orderId = strtolower(trim($row['order_id']));
+                $extraId = strtolower(trim($row['sku_id']));
+                $rawSku = strtolower(trim($row['seller_sku']));
+
+                $parsed = $this->parseSkuWithSkuOrder($rawSku, 1);
+                $skuCode = strtolower(trim($parsed['sku'] ?? $rawSku));
+
+                return "{$orderId}___{$skuCode}___{$extraId}";
             });
 
             foreach ($grouped as $key => $groupRows) {
+                $normalizedKey = strtolower($key);
+
+                if (isset($existingKeys[$normalizedKey])) {
+                    $this->skipped[] = $key . ' (duplicate)';
+                    continue;
+                }
+
                 $firstRow = $groupRows->first();
 
                 if (!empty($firstRow['cancelation_return_type'])) {
@@ -40,59 +65,74 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     continue;
                 }
 
-                [$extraId, $rawSku, $orderId] = explode('___', $key);
-                $shopName = trim($firstRow['warehouse_name']) ?? null;
-                $userId = SellerHasShop::where('shop_name', $shopName)->value('user_id') ?? "Chưa assign";
+                [$orderId, $skuCode, $extraId] = explode('___', $normalizedKey);
 
-                if (!$extraId || !$rawSku || !$shopName) {
-                    $this->skipped[] = $extraId . ' - ' . $rawSku;
+                $shopName = strtolower(trim($firstRow['warehouse_name'])) ?? null;
+                $userId = SellerHasShop::whereRaw('LOWER(shop_name) = ?', [$shopName])->value('user_id') ?? "Unassigned";
+
+                if (!$orderId || !$skuCode || !$shopName) {
+                    $this->skipped[] = $orderId . ' - ' . $skuCode . ' (missing data)';
                     continue;
                 }
 
-                // 👉 Lấy Created Time từ Excel và parse
                 $createdTimeRaw = $firstRow['created_time'] ?? null;
                 try {
                     $createdAt = $createdTimeRaw
                         ? Carbon::createFromFormat('m/d/Y g:i:s A', $createdTimeRaw)
                         : now();
                 } catch (\Exception $e) {
-                    $this->skipped[] = "$extraId - $rawSku (invalid created_time)";
+                    $this->skipped[] = "$orderId - $skuCode (invalid created_time)";
                     continue;
                 }
 
                 $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
-                $parsed = $this->parseSkuWithPack($rawSku, $originalQty);
-                $this->calculated[] = $parsed;
-                $skuCode = $parsed['sku'];
+
+                $parsed = $this->parseSkuWithSkuOrder($firstRow['seller_sku'], $originalQty);
+                $skuFinal = strtolower(trim($parsed['sku']));
                 $quantity = $parsed['quantity'];
 
-                if (Order::where('extra_id', $extraId)->where('sku', $skuCode)->where('order_id', $orderId)->exists()) {
-                    $this->skipped[] = $extraId . ' - ' . $skuCode;
+                if (empty($skuFinal) || $quantity <= 0) {
+                    $this->skipped[] = "$orderId - $skuCode (empty SKU or invalid quantity)";
                     continue;
                 }
 
+                $this->calculated[] = $parsed;
+
                 $total = $groupRows->sum(function ($row) {
-                    return floatval($row['sku_subtotal_before_discount'] - $row['sku_seller_discount'] - $row['shipping_fee_seller_discount']);
+                    return floatval(
+                        ($row['sku_subtotal_before_discount'] ?? 0)
+                        - ($row['sku_seller_discount'] ?? 0)
+                        - ($row['shipping_fee_seller_discount'] ?? 0)
+                    );
                 });
 
-                $sku = Sku::where('sku', $skuCode)->first();
+                $sku = Sku::whereRaw('LOWER(sku) = ?', [$skuFinal])->first();
                 $cost = $profit = $bonus = 0;
 
                 if ($sku) {
-                    $sku->decrement('quantity', $quantity);
-                    $service = new OrderService($sku, $quantity, $total);
-                    $calculated = $service->calculate();
-                    $cost = $calculated['cost'];
-                    $profit = $calculated['profit'];
-                    $bonus = $calculated['bonus'];
+                    if ($sku->quantity >= $quantity) {
+                        $sku->decrement('quantity', $quantity);
+
+                        $service = new OrderService($sku, $quantity, $total);
+                        $calculated = $service->calculate();
+                        $cost = $calculated['cost'];
+                        $profit = $calculated['profit'];
+                        $bonus = $calculated['bonus'];
+                    } else {
+                        $skuFinal .= ' not enough stock';
+                        $this->skipped[] = "$orderId - $skuFinal (Not enough stock. Available: {$sku->quantity}, Required: {$quantity})";
+                    }
+                } else {
+                    $skuFinal .= ' wrong sku';
+                    $this->skipped[] = "$orderId - $skuFinal (SKU not found in stock)";
                 }
 
-                $checkedShop = SellerHasShop::where('shop_name', $shopName)->value('shop_name');
+                $checkedShop = SellerHasShop::whereRaw('LOWER(shop_name) = ?', [$shopName])->value('shop_name');
 
                 $order = new Order([
                     'extra_id' => $extraId,
-                    'sku' => $skuCode,
-                    'shop_name' => $checkedShop ?? $shopName . ' - Chưa được add',
+                    'sku' => $skuFinal,
+                    'shop_name' => $checkedShop ?? $shopName . ' - New Shop',
                     'quantity' => $quantity,
                     'cost' => $cost,
                     'profit' => $profit,
@@ -102,47 +142,57 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     'user_id' => $userId,
                 ]);
 
-                $order->forceFill([
-                    'created_at' => $createdAt,
-                ])->save();
+                $order->forceFill(['created_at' => $createdAt])->save();
+
+                $hasValidOrders = true;
+
+                if (is_numeric($userId)) {
+                    $affectedUsersAndDates[] = [$userId, $createdAt->toDateString()];
+                }
             }
 
-            DB::commit();
+            if ($hasValidOrders) {
+                DB::commit();
+
+                foreach ($affectedUsersAndDates as [$userId, $date]) {
+                    ReportController::aggregateForDate($userId, $date);
+                }
+            } else {
+                DB::rollBack();
+            }
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e;
+            $this->skipped[] = 'File import failed: ' . $e->getMessage();
         }
     }
 
-    protected function parseSkuWithPack(string $rawSku, int $originalQuantity): array
+    protected function parseSkuWithSkuOrder(string $rawSku, int $originalQuantity): array
     {
-        // Nếu SKU gốc tồn tại → giữ nguyên
-        if (Sku::where('sku', $rawSku)->exists()) {
+        $rawSku = strtolower(trim($rawSku));
+
+        $skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
+
+        if ($skuOrder) {
+            $skuFromOrder = strtolower(trim($skuOrder->sku));
+
+            return [
+                'sku' => $skuFromOrder ?: $rawSku,
+                'quantity' => $originalQuantity * max((int) $skuOrder->quantity_per_pack, 1),
+            ];
+        }
+
+        $skuExists = Sku::whereRaw('LOWER(sku) = ?', [$rawSku])->exists();
+
+        if ($skuExists) {
             return [
                 'sku' => $rawSku,
                 'quantity' => $originalQuantity,
             ];
         }
 
-        $packQty = 1;
-        $cleanSku = $rawSku;
-
-        // 👉 Xử lý "pack" ở đầu
-        if (preg_match('/^(pack)?(\d+)(pack)?[_-]/i', $rawSku, $matches)) {
-            $packQty = (int) $matches[2];
-            $cleanSku = preg_replace('/^(pack)?\d+(pack)?[_-]/i', '', $rawSku);
-        }
-
-        // 👉 Xử lý "pack" ở cuối
-        elseif (preg_match('/[_-](pack)?(\d+)(pack)?$/i', $rawSku, $matches)) {
-            $packQty = (int) $matches[2];
-            $cleanSku = preg_replace('/[_-](pack)?\d+(pack)?$/i', '', $rawSku);
-        }
-
         return [
-            'sku' => trim($cleanSku, '_- '),
-            'quantity' => $originalQuantity * $packQty,
+            'sku' => $rawSku,
+            'quantity' => $originalQuantity,
         ];
     }
-
 }

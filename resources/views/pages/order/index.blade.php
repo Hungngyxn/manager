@@ -51,9 +51,9 @@
                             </span>
                         </div>
                         <div class="input-group form-check align-items-center" style="font-size: 1rem;">
-                            <input class="form-check-input me-1" type="checkbox" name="missing_sku" value="1"
+                            <input class=" me-1" type="checkbox" name="missing_sku" value="1"
                                 style="width: 1.2em; height: 1.2em;" {{ request('missing_sku') ? 'checked' : '' }}>
-                            <label class="form-check-label"> Chỉ hiển thị đơn lỗi SKU </label>
+                            <label class="form-check-label"> Show orders missing SKU </label>
                         </div>
                         <div class="input-group">
                             <input type="text" name="search" value="{{ request('search') }}"
@@ -85,7 +85,7 @@
                                             id="importForm">
                                             @csrf
                                             <label class="dropdown-item d-block" style="cursor: pointer">
-                                                <i class="fas fa-file-excel me-1"></i> Import Excel (Tối đa 20 file)
+                                                <i class="fas fa-file-excel me-1"></i> Import Excel (Max 20 files)
                                                 <input type="file" name="file[]" accept=".xlsx,.xls"
                                                     onchange="handleImport(this)" style="display: none;" multiple>
                                             </label>
@@ -135,8 +135,16 @@
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p class="mt-2">Đang xử lý file Excel, vui lòng chờ...</p>
+                        <p class="mt-2">Loading file Excel, pleasewait...</p>
                     </div>
+
+                    {{-- Alerts --}}
+                    @if (session('status'))
+                        <div class="alert alert-success">{{ session('status') }}</div>
+                    @endif
+                    @if (session('error'))
+                        <div class="alert alert-danger">{{ session('error') }}</div>
+                    @endif
 
                     {{-- Table --}}
                     <div class="table-responsive">
@@ -161,17 +169,17 @@
                                     <tr @if (is_null($order->skuInfo)) class="table-danger" @endif>
                                         <td><input type="checkbox" class="table-checkbox" value="{{ $order->id }}">
                                         </td>
-                                        <td>{{ $order->seller->name ?? ' Chưa Asign' }}</td>
+                                        <td>{{ $order->seller->name ?? ' Unassigned' }}</td>
                                         <td>
                                             <div style="display: flex; flex-direction: column;">
-                                                <strong>{{ $order->extra_id }}</strong>
+                                                <strong>{{ $order->order_id }}</strong>
                                                 <span class="text-gray-500 text-sm">{{ $order->created_at }}</span>
                                             </div>
                                         </td>
-                                        <td>{{ $order->skuInfo?->name ?? ($order->skuInfo?->sku ?? $order->sku . ' chưa được thêm') }}
+                                        <td>{{ $order->skuInfo?->name ?? ($order->skuInfo?->sku ?? $order->sku . ' wrong sku') }}
                                         </td>
                                         <td>
-                                            @if (Str::contains($order->shop_name, 'Chưa được add'))
+                                            @if (Str::contains($order->shop_name, 'New Shop'))
                                                 <span class="badge bg-danger">{{ $order->shop_name }}</span><br>
                                                 <a href="{{ route('shop.create') }}"
                                                     class="btn btn-sm btn-primary mt-1">+
@@ -189,7 +197,7 @@
                                             {{-- Edit --}}
                                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
                                                 data-bs-target="#editModal" type="button"
-                                                onclick="openEditModal({{ $order->id }}, '{{ addslashes($order->extra_id) }}', '{{ addslashes($order->sku) }}', {{ $order->quantity }}, {{ $order->total }}, {{ $order->fulfill_fee ?? 0 }})">
+                                                onclick="openEditModal({{ $order->id }},'{{ addslashes($order->order_id) }}', '{{ addslashes($order->sku) }}', {{ $order->quantity }}, {{ $order->total }}, {{ $order->fulfill_fee ?? 0 }})">
                                                 <i class="fas fa-edit"></i>
                                             </button>
 
@@ -211,6 +219,9 @@
                                     </tr>
                                 @endforelse
                             </tbody>
+                            <tfoot>
+                                <tr>aaaaa: {{ $orderCount }}</tr>
+                            </tfoot>
                         </table>
                     </div>
 
@@ -237,12 +248,20 @@
                     <form id="exportForm" method="POST" action="{{ route('orders.export') }}">
                         @csrf
                         <input type="hidden" name="mode" id="exportMode">
+
+                        {{-- truyền lại toàn bộ filter --}}
+                        @foreach (request()->only(['user_id', 'shop_name', 'date_start', 'date_end', 'missing_sku', 'search']) as $name => $value)
+                            <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                        @endforeach
+
+                        {{-- export current page --}}
                         <div id="currentPageIds">
                             @foreach ($orders as $order)
                                 <input type="hidden" name="order_ids[]" value="{{ $order->id }}">
                             @endforeach
                         </div>
                     </form>
+
 
                     {{-- Modal Edit --}}
                     <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel"
@@ -255,27 +274,32 @@
                                     <input type="hidden" name="id" id="edit_id">
 
                                     <div class="modal-header bg-primary text-white">
-                                        <h5 class="modal-title" id="editModalLabel">Chỉnh sửa SKU đơn hàng</h5>
+                                        <h5 class="modal-title" id="editModalLabel">Edit SKU order</h5>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                     </div>
 
                                     <div class="modal-body px-4">
                                         <div class="mb-3">
-                                            <label for="edit_extra_id" class="form-label">Extra ID</label>
-                                            <input type="text" name="extra_id" id="edit_extra_id"
+                                            <label for="edit_order_id" class="form-label">Order ID</label>
+                                            <input type="text" name="order_id" id="edit_order_id"
                                                 class="form-control" required readonly>
                                         </div>
 
                                         <div class="mb-3">
                                             <label for="edit_sku" class="form-label">SKU</label>
-                                            <input type="text" name="sku" id="edit_sku" class="form-control"
+                                            <select name="sku" id="edit_sku" class="form-select select2-edit"
                                                 required>
+                                                <option value="">-- Select SKU --</option>
+                                                @foreach ($skus as $sku)
+                                                    <option value="{{ $sku->sku }}">{{ $sku->sku }}</option>
+                                                @endforeach
+                                            </select>
                                         </div>
 
                                         <div class="mb-3">
                                             <label for="edit_quantity" class="form-label">Quantity</label>
                                             <input type="text" name="quantity" id="edit_quantity"
-                                                class="form-control" required readonly>
+                                                class="form-control" required>
                                         </div>
 
                                         <div class="mb-3">
@@ -293,9 +317,9 @@
                                     </div>
 
                                     <div class="modal-footer px-4">
-                                        <button type="submit" class="btn btn-success">Lưu thay đổi</button>
+                                        <button type="submit" class="btn btn-success">Save</button>
                                         <button type="button" class="btn btn-secondary"
-                                            data-bs-dismiss="modal">Huỷ</button>
+                                            data-bs-dismiss="modal">Cancel</button>
                                     </div>
                                 </form>
                             </div>
@@ -308,16 +332,17 @@
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content border-0 shadow-sm">
                                 <div class="modal-header bg-light">
-                                    <h5 class="modal-title">Xác nhận Export</h5>
+                                    <h5 class="modal-title">Confirm Export</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
-                                <div class="modal-body">Bạn có chắc chắn muốn export dữ liệu?</div>
+                                <div class="modal-body">Are you sure you want to export data?</div>
                                 <div class="modal-footer">
                                     <button type="submit" class="btn btn-success" form="exportForm"
                                         data-bs-dismiss="modal">
-                                        <i class="fas fa-file-excel me-1"></i> Xác nhận Export
+                                        <i class="fas fa-file-excel me-1"></i> Confirm Export
                                     </button>
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Huỷ</button>
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -333,20 +358,20 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Thêm Fulfill Fee</h5>
+                    <h5 class="modal-title">Add Fulfill Fee</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body px-4">
                     <div class="mb-3">
                         <a class="btn btn-sm btn-outline-secondary" href="{{ route('orders.download-sample') }}">
-                            <i class="fas fa-download me-2 text-success"></i> Tải file mẫu
+                            <i class="fas fa-download me-2 text-success"></i> Download Sample
                         </a>
                     </div>
                     <form action="{{ route('orders.import.fulfill_fee') }}" method="POST" enctype="multipart/form-data"
                         id="fulfillFeeForm">
                         @csrf
                         <div class="mb-3">
-                            <label for="fulfill_fee_file" class="form-label">Chọn file Excel (.xlsx/.xls)</label>
+                            <label for="fulfill_fee_file" class="form-label">Select File (.xlsx/.xls)</label>
                             <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
                         </div>
                         <div class="text-end">

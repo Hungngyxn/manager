@@ -2,11 +2,14 @@
 
 namespace App\Imports;
 
+use App\Models\Order;
 use App\Models\SellerHasShop;
+use App\Models\ShopAccount;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use App\Http\Controllers\ReportController;
 
 class ShopImport implements ToCollection, WithHeadingRow
 {
@@ -15,40 +18,71 @@ class ShopImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows)
     {
-        foreach ($rows as $index => $row) {
-            $excelRow = $index + 2; // do heading row = row 1
+        foreach ($rows as $row) {
             $shopName = trim($row['shop_name'] ?? '');
             $shopCode = trim($row['shop_code'] ?? '');
             $sellerName = trim($row['seller_name'] ?? '');
+            $email = trim($row['email'] ?? '');
 
-            // Bỏ qua dòng trống hoàn toàn
-            if (empty($shopName) && empty($sellerName)) {
-                continue;
-            }
-
-            // Nếu thiếu shop_name thì skip
             if (empty($shopName)) {
-                $this->skipped[] = $excelRow;
+                $this->skipped[] = 'Missing shop_name';
                 continue;
             }
 
-            // Tìm user, nếu không có thì là unassigned
             $user = User::where('name', $sellerName)->first();
 
-            // Nếu shop đã tồn tại thì bỏ qua
             $existingShop = SellerHasShop::where('shop_name', $shopName)->first();
+
             if ($existingShop) {
-                continue;
+                $oldUserId = $existingShop->user_id;
+
+                if (is_null($oldUserId) && $user?->id) {
+                    $existingShop->update([
+                        'user_id' => $user->id,
+                        'shop_code' => $shopCode,
+                        'email' => $email ?: null,
+                    ]);
+
+                    Order::where('shop_name', $shopName)
+                        ->update(['user_id' => $user->id]);
+
+                    // Tính lại report cho các ngày có đơn cũ
+                    $dates = Order::where('shop_name', $shopName)
+                        ->pluck('created_at')
+                        ->map(fn($dt) => $dt->toDateString())
+                        ->unique();
+
+                    foreach ($dates as $date) {
+                        ReportController::aggregateForDate($user->id, $date);
+                    }
+
+                    $this->created[] = "$shopName (assigned to: $sellerName, reports updated)";
+                } else {
+                    $this->skipped[] = "$shopName (already exists with seller)";
+                }
+            } else {
+                SellerHasShop::create([
+                    'shop_name' => $shopName,
+                    'shop_code' => $shopCode,
+                    'user_id' => $user?->id,
+                    'email' => $email ?: null,
+                ]);
+
+                $this->created[] = "$shopName (new, seller: " . ($sellerName ?: 'Unassigned') . ")";
             }
 
-            // Tạo mới shop
-            SellerHasShop::create([
-                'shop_name' => $shopName,
-                'shop_code' => $shopCode,
-                'user_id'   => $user?->id, // có thể là null nếu không tìm thấy user
-            ]);
-
-            $this->created[] = "$shopName (code: $shopCode, seller: " . ($sellerName ?: 'Unassigned') . ")";
+            if ($email) {
+                ShopAccount::updateOrCreate(
+                    ['email' => $email],
+                    [
+                        'thang_reg' => now()->startOfMonth()->toDateString(),
+                        'tuoi_acc' => 0,
+                        'email' => $email,
+                        'user_id' => $user?->id,
+                        'status' => 'active',
+                    ]
+                );
+            }
         }
     }
 }

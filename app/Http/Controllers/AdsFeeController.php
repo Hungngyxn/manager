@@ -17,13 +17,22 @@ class AdsFeeController extends Controller
             'date' => 'required|date_format:Y-m-d',
             'ads' => 'required|numeric',
         ]);
+
         try {
             AdsFee::updateOrCreate(
                 ['user_id' => $request->user_id, 'date' => $request->date],
                 ['ads' => $request->ads]
             );
 
-            return redirect()->route('report.index')->with('status', 'Cập nhật chi phí ads thành công.');
+            // Gọi hàm cập nhật báo cáo cho user và ngày đó
+            ReportController::calculateReportForUser(
+                $request->user_id,
+                null,
+                $request->date,
+                $request->date
+            );
+
+            return redirect()->route('report.index')->with('status', 'Ads fee updated successfully.');
         } catch (\Exception $e) {
             return redirect()->route('report.index')->with('error', $e->getMessage());
         }
@@ -56,15 +65,20 @@ class AdsFeeController extends Controller
             $allUserIds = AdsFee::select('user_id')->distinct()->pluck('user_id');
 
             foreach ($allUserIds as $userId) {
-                ReportController::calculateReportForUser($userId, null, $minDate, $maxDate);
+                ReportController::calculateReportForUser(
+                    $userId,
+                    null,
+                    $minDate,
+                    $maxDate
+                );
             }
 
             return redirect()->route('report.index', [
                 'date_range' => $minDate . ' to ' . $maxDate
             ])->with('status', $message);
 
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Import thất bại: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            return back()->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
 

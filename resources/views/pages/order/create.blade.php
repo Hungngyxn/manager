@@ -7,7 +7,12 @@
             @csrf
 
             <div class="mb-3">
-                <label for="extra_id" class="form-label fw-bold">Extra ID</label>
+                <label for="order_id" class="form-label fw-bold">ORDER ID</label>
+                <input type="text" name="order_id" class="form-control" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="extra_id" class="form-label fw-bold">SKU ID</label>
                 <input type="text" name="extra_id" class="form-control" required>
             </div>
 
@@ -29,7 +34,8 @@
                     <select id="shop_name" name="shop_name" class="form-select select2" required>
                         <option value="">-- Select Shop --</option>
                         @foreach ($shops as $shop)
-                            <option value="{{ $shop->shop_name }}" data-code="{{ $shop->shop_code }}" data-user="{{ $shop->user_id}}">
+                            <option value="{{ $shop->shop_name }}" data-code="{{ $shop->shop_code }}"
+                                data-user="{{ $shop->user_id }}">
                                 {{ $shop->shop_name }}
                             </option>
                         @endforeach
@@ -48,7 +54,8 @@
             <div class="row">
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Quantity</label>
-                    <input type="number" name="quantity" id="quantity" class="form-control" value="1" min="1" required>
+                    <input type="number" name="quantity" id="quantity" class="form-control" value="1" min="1"
+                        required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Calculated Cost</label>
@@ -68,11 +75,17 @@
                 <a href="{{ route('orders.index') }}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
+
+        @if (session('status'))
+            <div class="alert alert-success">{{ session('status') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
     </div>
 
     {{-- Script --}}
     @push('scripts')
         <script src="{{ asset('js/order.js') }}"></script>
     @endpush
-
 @endsection

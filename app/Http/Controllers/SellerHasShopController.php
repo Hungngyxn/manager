@@ -5,16 +5,13 @@ namespace App\Http\Controllers;
 use App\Imports\ShopImport;
 use App\Models\Order;
 use App\Models\SellerHasShop;
+use App\Models\ShopAccount;
 use App\Models\User;
 use App\Services\TikTokService;
-use EcomPHP\TiktokShop\Client;
-use Http;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class SellerHasShopController extends Controller
@@ -32,7 +29,6 @@ class SellerHasShopController extends Controller
         $user = auth()->user();
         $query = SellerHasShop::with('seller');
 
-        // Nếu là User, chỉ xem Shop của mình
         if ($user->role->name === 'Seller') {
             $query->where('user_id', $user->id);
         }
@@ -45,11 +41,11 @@ class SellerHasShopController extends Controller
             }
         }
 
-        // Nếu có search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('shop_name', 'like', '%' . $search . '%')
+                    ->orWhere('email', 'like', '%' . $search . '%')
                     ->orWhere('shop_code', 'like', '%' . $search . '%');
             });
         }
@@ -62,14 +58,12 @@ class SellerHasShopController extends Controller
             $sellers = User::whereHas('role')->get();
         }
 
-
         return view('pages.shop.index', compact('shops', 'sellers', 'totalShops'));
     }
 
     public function create()
     {
         $sellers = User::whereHas('role')->get();
-
         return view('pages.shop.create', compact('sellers'));
     }
 
@@ -80,26 +74,41 @@ class SellerHasShopController extends Controller
         ]);
 
         DB::beginTransaction();
+
         try {
             $shop = SellerHasShop::create([
                 'user_id' => $request->seller_id,
                 'shop_name' => trim($request->shop_name),
                 'shop_code' => $request->shop_code ?? null,
+                'email' => $request->email,
             ]);
 
-            Order::where('shop_name', 'like', $request->shop_name . '%')
-                ->update(['shop_name' => $shop->shop_name, 'user_id' => $shop->user_id]);
+            $affectedOrders = Order::where('shop_name', 'like', $request->shop_name . '%')->get();
+
+            foreach ($affectedOrders as $order) {
+                $order->update([
+                    'shop_name' => $shop->shop_name,
+                    'user_id' => $shop->user_id,
+                ]);
+            }
+
+            $dates = $affectedOrders
+                ->pluck('created_at')
+                ->map(fn($dt) => $dt->toDateString())
+                ->unique();
+
+            foreach ($dates as $date) {
+                ReportController::aggregateForDate($shop->user_id, $date);
+            }
 
             DB::commit();
 
-            return redirect()->route('shop.index')->with('success', 'Shop created successfully.');
+            return redirect()->route('shop.index')->with('success', 'Shop created and reports updated successfully.');
         } catch (QueryException $e) {
             DB::rollBack();
-
-            return redirect()->route('shop.index')->with('error', 'Failed to create shop. Maybe duplicated shop name or code.');
+            return redirect()->route('shop.index')->with('error', 'Failed to create shop. Possibly duplicated shop name or code.');
         } catch (\Exception $e) {
             DB::rollBack();
-
             return redirect()->route('shop.index')->with('error', 'Unexpected error: ' . $e->getMessage());
         }
     }
@@ -107,7 +116,6 @@ class SellerHasShopController extends Controller
     public function edit(SellerHasShop $shop)
     {
         $this->authorizeShopAccess($shop);
-
         return view('pages.shop.edit', compact('shop'));
     }
 
@@ -118,19 +126,21 @@ class SellerHasShopController extends Controller
         $validated = $request->validate([
             'shop_name' => 'required|string|max:255',
             'shop_code' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
             'user_id' => 'required|exists:users,id',
             'on_hold' => 'nullable|numeric',
             'payout' => 'nullable|numeric',
         ]);
 
         DB::beginTransaction();
+
         try {
             $originalShopName = $shop->shop_name;
-
+            $oldUserId = $shop->user_id;
             $shop->update($validated);
 
             if ($originalShopName !== $validated['shop_name']) {
-                if (str_ends_with($originalShopName, ' - Chưa được add')) {
+                if (str_ends_with($originalShopName, ' - New Shop')) {
                     Order::where('shop_name', $originalShopName)
                         ->update([
                             'shop_name' => $shop->shop_name,
@@ -139,16 +149,38 @@ class SellerHasShopController extends Controller
                 }
             }
 
+            if (is_null($oldUserId) && $validated['user_id']) {
+                Order::where('shop_name', $shop->shop_name)
+                    ->update(['user_id' => $validated['user_id']]);
+
+                $dates = Order::where('shop_name', $shop->shop_name)
+                    ->pluck('created_at')
+                    ->map(fn($dt) => $dt->toDateString())
+                    ->unique();
+
+                foreach ($dates as $date) {
+                    ReportController::aggregateForDate($validated['user_id'], $date);
+                }
+            }
+
+            if (!empty($validated['email'])) {
+                ShopAccount::updateOrCreate(
+                    ['email' => $validated['email']],
+                    [
+                        'email' => $validated['email'],
+                        'user_id' => $validated['user_id'],
+                    ]
+                );
+            }
+
             DB::commit();
 
             return redirect()->route('shop.index')->with('success', 'Shop updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-
             return redirect()->route('shop.index')->with('error', 'Error updating shop: ' . $e->getMessage());
         }
     }
-
 
 
     public function destroy(SellerHasShop $shop)
@@ -159,7 +191,7 @@ class SellerHasShopController extends Controller
 
         try {
             Order::where('shop_name', $shop->shop_name)
-                ->update(['shop_name' => $shop->shop_name . ' - Chưa được add']);
+                ->update(['shop_name' => $shop->shop_name . ' - New Shop']);
 
             $shop->delete();
 
@@ -177,7 +209,7 @@ class SellerHasShopController extends Controller
     {
         $user = auth()->user();
 
-        if ($user->role->name === 'Seller' && $shop->seller_id !== $user->id) {
+        if ($user->role->name === 'Seller' && $shop->user_id !== $user->id) {
             abort(403, 'Unauthorized access to shop.');
         }
     }
@@ -208,28 +240,27 @@ class SellerHasShopController extends Controller
             'file.*' => 'required|mimes:xlsx,xls'
         ]);
 
-        $import = new ShopImport;
+        $import = new ShopImport();
 
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             Excel::import($import, $request->file('file'));
 
-            \DB::commit();
+            DB::commit();
 
-            return back()->with([
-                'status' => 'Import shop hoàn tất!',
-                'error' => 'Import thất bại dòng: ' . implode(', ', $import->skipped),
+            return redirect()->back()->with([
+                'status' => 'Shop import completed successfully!',
+                'error' => 'Failed rows: ' . implode(', ', $import->created),
             ]);
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
 
-            return back()->with([
-                'error' => 'Import thất bại: ' . $e->getMessage(),
+            return redirect()->back()->with([
+                'error' => 'Import failed: ' . $e->getMessage(),
             ]);
         }
     }
-
 
     public function downloadSample()
     {
@@ -237,7 +268,6 @@ class SellerHasShopController extends Controller
 
         return response()->download($path, 'sample_shop.xlsx');
     }
-
 
     public function connectTikTok(Request $request)
     {
@@ -272,7 +302,7 @@ class SellerHasShopController extends Controller
     {
         $code = $request->input('code');
         if (!$code) {
-            return redirect()->route('shop.index')->with('error', 'Không có mã code trả về từ TikTok.');
+            return redirect()->route('shop.index')->with('error', 'No code returned from TikTok.');
         }
 
         DB::beginTransaction();
@@ -283,25 +313,17 @@ class SellerHasShopController extends Controller
             $client->setAccessToken($accessToken);
 
             $shopCipher = $this->tiktok->fetchShopCipher($client);
-
             $client->setShopCipher($shopCipher);
 
             $this->tiktok->saveOrUpdateShop($accessToken, $shopCipher);
 
             DB::commit();
 
-            return redirect()->route('shop.index')->with('status', 'ổn');
-
-            // return redirect()->route('orders.sync', [
-            //     'access_token' => $accessToken,
-            //     'shop_cipher' => $shopCipher,
-            // ]);
+            return redirect()->route('shop.index')->with('status', 'Connected successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
 
-            return redirect()->route('shop.index')->with('error', 'Lỗi: ' . $e->getMessage());
+            return redirect()->route('shop.index')->with('error', 'Error: ' . $e->getMessage());
         }
     }
-
 }
-

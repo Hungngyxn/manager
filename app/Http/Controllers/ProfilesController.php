@@ -47,7 +47,7 @@ class ProfilesController extends Controller
 
             return redirect()->back()->with('status', 'Updated successfully!');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Some thing went wrong: ' . $e->getMessage());
         }
     }
 }

@@ -34,44 +34,44 @@ class SkuImport implements ToCollection, WithHeadingRow
                 $tierRaw     = trim($row['tier'] ?? '') ?: null;
 
                 if (empty($skuCode)) {
-                    $this->skipped[] = '[SKU không hợp lệ]';
+                    $this->skipped[] = '[Invalid SKU]';
                     continue;
                 }
 
-                // ✅ Gán số lượng mặc định nếu là #N/A
+                // ✅ Set default quantity if it's #N/A or invalid
                 if ($rawQuantity === '#N/A' || !is_numeric($rawQuantity)) {
                     $quantity = 1000;
                 } else {
                     $quantity = floatval($rawQuantity);
                 }
 
-                // ✅ Chuẩn hoá cost
+                // ✅ Normalize cost
                 $costStr = str_replace(',', '.', $rawCost);
                 if (!is_numeric($costStr)) {
-                    $this->skipped[] = $skuCode . ' - Base cost không hợp lệ';
+                    $this->skipped[] = $skuCode . ' - Invalid base cost';
                     continue;
                 }
                 $cost = floatval($costStr);
 
-                // ✅ Gán tier đặc biệt nếu là SP Research mới
+                // ✅ Handle special tier case for "SP Research mới"
                 if (strtolower(trim($tierRaw)) === 'sp research mới') {
                     $tierName = 'Tier 3';
                 } else {
                     $tierName = trim(preg_replace('/\s*\(.*/', '', $tierRaw));
                 }
 
-                // Kiểm tra tier tồn tại nếu không rỗng
+                // Check if tier exists if not empty
                 if ($tierName && !Tier::where('tier', $tierName)->exists()) {
-                    $this->skipped[] = $skuCode . " - Tier \"$tierName\" không tồn tại";
+                    $this->skipped[] = $skuCode . " - Tier \"$tierName\" does not exist";
                     continue;
                 }
 
                 if (empty($skuName)) {
-                    $this->skipped[] = $skuCode . ' - Tên mặt hàng trống';
+                    $this->skipped[] = $skuCode . ' - Empty product name';
                     continue;
                 }
 
-                // ✅ Tìm và cập nhật hoặc tạo mới SKU
+                // ✅ Find and update or create SKU
                 $sku = Sku::where('sku', $skuCode)->first();
 
                 if ($sku) {
@@ -96,7 +96,7 @@ class SkuImport implements ToCollection, WithHeadingRow
                 }
 
             } catch (\Throwable $e) {
-                $this->skipped[] = $skuCode . ' - Lỗi không xác định';
+                $this->skipped[] = $skuCode . ' - Unknown error';
                 continue;
             }
         }
