@@ -46,6 +46,8 @@ class CheckAccess
             $name = "shop";
         } else if ($name == "shop-accounts") {
             $name = "shop";
+        } else if ($name == "log") {
+            $name = "log";
         }
 
         $menuId = Menu::whereName($name)->first()->id;

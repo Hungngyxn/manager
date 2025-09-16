@@ -24,14 +24,17 @@ class SkuImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows)
     {
         foreach ($rows as $row) {
-            if ($row->filter()->isEmpty()) continue;
+            if ($row->filter()->isEmpty())
+                continue;
 
             try {
-                $skuCode     = trim($row['sku'] ?? '');
-                $rawCost     = $row['base_cost'] ?? null;
+                $skuCode = trim($row['sku'] ?? '');
+                $rawCost = $row['base_cost'] ?? null;
                 $rawQuantity = $row['so_luong_ton_kho'] ?? null;
-                $skuName     = $row['mat_hang'] ?? null;
-                $tierRaw     = trim($row['tier'] ?? '') ?: null;
+                $skuName = $row['mat_hang'] ?? null;
+                $price = $row['gia_ban'] ?? null;
+                $freeshipping = $row['freeship'] ?? null;
+                $tierRaw = trim($row['tier'] ?? '') ?: null;
 
                 if (empty($skuCode)) {
                     $this->skipped[] = '[Invalid SKU]';
@@ -76,20 +79,24 @@ class SkuImport implements ToCollection, WithHeadingRow
 
                 if ($sku) {
                     $sku->update([
-                        'cost'     => $cost,
-                        'name'     => $skuName,
+                        'cost' => $cost,
+                        'name' => $skuName,
                         'quantity' => $quantity,
-                        'tier'     => $tierName,
+                        'price' => $price,
+                        'freeshipping' => !empty($freeshipping) ? 1 : 0,
+                        'tier' => $tierName,
                     ]);
                     $this->skuService->updateOrdersBySku($sku);
                     $this->updated[] = $skuCode;
                 } else {
                     $newSku = Sku::create([
-                        'sku'      => strtolower($skuCode),
-                        'cost'     => $cost,
-                        'name'     => $skuName,
+                        'sku' => strtolower($skuCode),
+                        'cost' => $cost,
+                        'name' => $skuName,
                         'quantity' => $quantity,
-                        'tier'     => $tierName,
+                        'price' => $price,
+                        'freeshipping' => !empty($freeshipping) ? 1 : 0,
+                        'tier' => $tierName,
                     ]);
                     $this->skuService->updateOrdersBySku($newSku);
                     $this->created[] = $skuCode;

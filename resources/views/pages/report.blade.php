@@ -82,6 +82,7 @@
                                             @endif
                                         </a>
                                     </th>
+                                    <th>Total orders</th>
                                     <th>
                                         <a
                                             href="?{{ http_build_query(array_merge(request()->all(), ['sort' => request('sort') === 'revenue_desc' ? 'revenue_asc' : 'revenue_desc'])) }}">
@@ -127,6 +128,7 @@
                                     <tr>
                                         <td>{{ $report->userInfo?->name ?? 'N/A' }}</td>
                                         <td>{{ $report->unit_sale }}</td>
+                                        <td>{{ $report->orders_count }}</td>
                                         <td>{{ $report->revenue }}</td>
                                         <td>{{ $report->base_cost }}</td>
                                         <td class="text-start">

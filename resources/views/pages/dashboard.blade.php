@@ -131,7 +131,7 @@
                                             class="rounded-circle mb-3" style="width: 130px; height: 130px;">
                                         <div class="text-warning fs-2">👑</div>
                                         <div class="fw-bold fs-4">{{ $first['name'] }}</div>
-                                        <div class="text-warning fs-3 fw-bold">{{ $first['score'] }}</div>
+                                        <div class="text-d fs-3 fw-bold">{{ $first['score'] }}</div>
                                     </div>
                                 </div>
                             @endif
@@ -174,7 +174,9 @@
 
                 </div>
             </div>
-        </div>
+        {{-- </div>
+        <div style="height: 500px"></div>
+        <button class="sitrit" > Sít rịt nè</button> --}}
 
     </div>
 

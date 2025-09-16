@@ -12,7 +12,6 @@ class SkuService
     public function updateOrdersBySku(Sku $sku, string $scope = 'all'): void
     {
         $skuName = strtolower($sku->sku);
-        $bonus_pct = $sku->tierBonus->bonus ?? 0;
 
         // 🟢 Tìm các đơn hàng có SKU đúng
         $query = Order::where('sku', $skuName);
@@ -23,14 +22,15 @@ class SkuService
 
         // ✅ Cập nhật các đơn đúng
         foreach ($query->get() as $order) {
-            $cost = $sku->cost * $order->quantity;
-            $profit = $order->total - $cost - $order->fulfill_fee;
-            $bonus = $profit * ($bonus_pct / 100);
+            $service = new OrderService($sku, $order->quantity, $order->total, $order->fulfill_fee);
+            $calculated = $service->calculate();
 
             $order->update([
-                'cost' => round($cost, 2),
-                'profit' => round($profit, 2),
-                'bonus' => round($bonus, 2),
+                'cost' => $calculated['cost'],
+                'profit' => $calculated['profit'],
+                'bonus' => $calculated['bonus'],
+                'total' => $calculated['total'],
+
             ]);
         }
 
@@ -45,15 +45,16 @@ class SkuService
             if ($sku->quantity >= $order->quantity) {
                 $sku->decrement('quantity', $order->quantity);
 
-                $cost = $sku->cost * $order->quantity;
-                $profit = $order->total - $cost - $order->fulfill_fee;
-                $bonus = $profit * ($bonus_pct / 100);
+                $service = new OrderService($sku, $order->quantity, $order->total, $order->fulfill_fee);
+                $calculated = $service->calculate();
 
                 $order->update([
                     'sku' => $skuName,
-                    'cost' => round($cost, 2),
-                    'profit' => round($profit, 2),
-                    'bonus' => round($bonus, 2),
+                    'cost' => $calculated['cost'],
+                    'profit' => $calculated['profit'],
+                    'bonus' => $calculated['bonus'],
+                    'total' => $calculated['total'],
+
                 ]);
 
                 // ✅ Gọi cập nhật report
@@ -61,7 +62,6 @@ class SkuService
             }
         }
     }
-
 
     public function parseSkuWithSkuOrder(string $rawSku, int $quantity): array
     {

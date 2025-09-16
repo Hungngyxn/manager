@@ -20,10 +20,15 @@ class CreateSellerHasShopTable extends Migration
             $table->string('bank')->nullable();
             $table->decimal('onhold', 10, 2)->default(0);
             $table->decimal('payout', 10, 2)->default(0);
+            $table->unsignedBigInteger('team_id')->nullable();
 
             // Thời gian gán seller
             $table->timestamp('assigned_at')->nullable();
             $table->timestamp('unassigned_at')->nullable();
+
+            // Các cột bổ sung
+            $table->decimal('pending', 10, 2)->nullable();
+            $table->integer('limit_order')->nullable();
 
             $table->timestamps();
 

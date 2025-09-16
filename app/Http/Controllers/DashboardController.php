@@ -66,16 +66,16 @@ class DashboardController extends Controller
         $totalSellers = User::whereHas('role')->count();
 
         $topSellers = Order::whereBetween('created_at', [$startOfMonth, now()->endOfDay()])
-            ->select('user_id', DB::raw('SUM(quantity) as total_units'))
+            ->select('user_id', DB::raw('SUM(profit) as total_profit'))
             ->groupBy('user_id')
-            ->orderByDesc('total_units')
+            ->orderByDesc('total_profit')
             ->take(10)
             ->with('seller')
             ->get()
             ->map(function ($item) {
                 return [
                     'name' => $item->seller->name ?? 'Unknown',
-                    'score' => $item->total_units,
+                    'score' => $item->total_profit,
                 ];
             });
 

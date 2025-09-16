@@ -13,7 +13,8 @@ class SkuOrderImport implements ToCollection, WithHeadingRow
     {
         foreach ($rows as $row) {
             $sku = trim($row['sku'] ?? '');
-            $quantityPerPack = intval($row['quantity_pack'] ?? 0);
+            $quantityPerPack = intval($row['quantitypack'] ?? 0);
+
 
             // Bỏ qua nếu thiếu SKU hoặc quantity_per_pack <= 0
             if (empty($sku) || $quantityPerPack <= 0) {

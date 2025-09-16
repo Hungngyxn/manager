@@ -102,6 +102,10 @@ class ReportController extends Controller
                 ->whereBetween('date', [$startDate, $endDate])
                 ->sum('ads');
             $report->ads = $ads;
+
+            $report->orders_count = Order::where('user_id', $report->user)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->count();
         }
 
         $page = request()->get('page', 1);
@@ -146,7 +150,7 @@ class ReportController extends Controller
     {
         $unit_sale = $orders->sum('quantity');
         $revenue = $orders->sum('total');
-        $base_cost = 0;
+        $base_cost = $orders->sum('cost');
         $total_bonus = 0;
 
         $total_ads = AdsFee::where('user_id', $userId)
@@ -157,9 +161,9 @@ class ReportController extends Controller
         foreach ($orders as $order) {
             $sku = Sku::with('tierBonus')->where('sku', $order->sku)->first();
 
-            if ($sku && is_numeric($sku->cost)) {
-                $base_cost += $order->quantity * $sku->cost;
-            }
+            // if ($sku && is_numeric($sku->cost)) {
+            //     $base_cost += $order->quantity * $sku->cost;
+            // }
 
             if ($sku && $sku->tierBonus && is_numeric($sku->tierBonus->bonus)) {
                 $bonus_pct = $sku->tierBonus->bonus / 100;
@@ -171,6 +175,9 @@ class ReportController extends Controller
                         - $ads_per_unit;
                 }
 
+                if ($sku->tierBonus->tier != 'Tier 1') {
+                    $unit_profit *= 1.5;
+                }
                 $total_bonus += $bonus_pct * $order->quantity * $unit_profit;
             }
         }

@@ -6,12 +6,14 @@ use App\Imports\ShopImport;
 use App\Models\Order;
 use App\Models\SellerHasShop;
 use App\Models\ShopAccount;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\TikTokService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class SellerHasShopController extends Controller
@@ -20,14 +22,14 @@ class SellerHasShopController extends Controller
 
     public function __construct(TikTokService $tiktok)
     {
-        $this->middleware('auth');
         $this->tiktok = $tiktok;
     }
 
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = SellerHasShop::with('seller');
+        $perPage = $request->get('perPage', 10);
+        $query = SellerHasShop::with('seller')->orderBy('updated_at', 'desc');
 
         if ($user->role->name === 'Seller') {
             $query->where('user_id', $user->id);
@@ -41,6 +43,14 @@ class SellerHasShopController extends Controller
             }
         }
 
+        if ($request->filled('team_id')) {
+            if ($request->team_id === 'null') {
+                $query->whereNull('team_id');
+            } else {
+                $query->where('team_id', $request->team_id);
+            }
+        }
+
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -50,16 +60,34 @@ class SellerHasShopController extends Controller
             });
         }
 
-        $totalShops = $query->count();
-        $shops = $query->paginate(10)->appends($request->only(['search', 'user_id']));
-        $sellers = [];
+        if ($request->filled('filter_pending_nullbank') && $request->filter_pending_nullbank == 1) {
+            $query->where(function ($q) {
+                $q->where('pending', '>', 0)
+                    ->orWhere('onhold', '>', 0);
+            })->where('bank', '=', '-');
+        }
 
+
+        $totalShops = $query->count();
+
+        $totals = [
+            'pending' => (clone $query)->where('pending', '>', 0)->sum('pending'),
+            'onhold' => (clone $query)->where('onhold', '>', 0)->sum('onhold'),
+            'payout' => (clone $query)->where('payout', '>', 0)->sum('payout'),
+        ];
+
+        $shops = $query->paginate($perPage)->appends($request->only(['search', 'user_id']));
+
+        $sellers = [];
         if ($user->role->name !== 'Seller') {
             $sellers = User::whereHas('role')->get();
         }
 
-        return view('pages.shop.index', compact('shops', 'sellers', 'totalShops'));
+        $teams = Team::get();
+
+        return view('pages.shop.index', compact('shops', 'sellers', 'totalShops', 'teams', 'totals'));
     }
+
 
     public function create()
     {
@@ -128,11 +156,11 @@ class SellerHasShopController extends Controller
             'shop_code' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'user_id' => 'required|exists:users,id',
-            'on_hold' => 'nullable|numeric',
+            'team_id' => 'nullable',
+            'onhold' => 'nullable|numeric',
             'payout' => 'nullable|numeric',
         ]);
 
-        DB::beginTransaction();
 
         try {
             $originalShopName = $shop->shop_name;
@@ -173,15 +201,13 @@ class SellerHasShopController extends Controller
                 );
             }
 
-            DB::commit();
-
-            return redirect()->route('shop.index')->with('success', 'Shop updated successfully.');
+            return redirect()->back()->with('success', 'Shop updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('shop.index')->with('error', 'Error updating shop: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'Error updating shop: ' . $e->getMessage());
         }
     }
-
 
     public function destroy(SellerHasShop $shop)
     {
@@ -269,6 +295,49 @@ class SellerHasShopController extends Controller
         return response()->download($path, 'sample_shop.xlsx');
     }
 
+    public function receiveTikTokData(Request $request)
+    {
+        $data = $request->all();
+
+        if (empty($data['profile_name'])) {
+            return response()->json(['error' => 'Thiếu profile_name'], 400);
+        }
+
+        $shopName = trim($data['profile_name']);
+        $shopCode = $data['profile_code'] ?? null;
+
+        // Tìm shop theo shop_name
+        if (!empty($shopCode)) {
+            $shop = SellerHasShop::where('shop_code', $shopCode)->first();
+        } else {
+            $shop = SellerHasShop::where('shop_name', $shopName)->first();
+        }
+
+        $shopData = [
+            'shop_name' => $shopName,
+            'limit_order' => $data['order_limit'] ?? null,
+            'shop_code' => $data['profile_code'] ?? null,
+            'bank' => $data['profile_bank_code'] ?? null,
+            'onhold' => str_replace(',', '', $data['profile_total_onhold'] ?? 0),
+            'pending' => str_replace(',', '', $data['profile_total_pending'] ?? 0),
+            'payout' => str_replace(',', '', $data['profile_total_paid'] ?? 0),
+        ];
+
+        if ($shop) {
+            $shop->update($shopData);
+        } else {
+            $shop = SellerHasShop::create(array_merge([
+                'shop_name' => $shopName,
+                'user_id' => null,
+            ], $shopData));
+        }
+
+        return response()->json([
+            'message' => 'Cập nhật thành công',
+            'shop' => $shop,
+        ]);
+    }
+
     public function connectTikTok(Request $request)
     {
         $request->validate([
@@ -298,6 +367,59 @@ class SellerHasShopController extends Controller
         return redirect($this->tiktok->authorizeUrl());
     }
 
+    // public function financeShop($id)
+    // {
+    //     // $shop = SellerHasShop::findOrFail($id);
+
+    //     // try {
+    //     //     $client = $this->tiktok->client();
+
+    //     //     // Lấy access token từ DB hoặc làm mới nếu cần
+    //     //     $accessToken = $this->tiktok->getAccessToken($shop->user_id);
+    //     //     $client->setAccessToken($accessToken);
+
+    //     //     // Lấy shop_cipher từ DB (nếu không có thì báo lỗi)
+    //     //     $shopCipher = $shop->shop_cipher;
+    //     //     if (!$shopCipher) {
+    //     //         return response()->json(['error' => 'Shop chưa được liên kết cipher'], 400);
+    //     //     }
+
+    //     //     // Lấy danh sách báo cáo theo tháng hiện tại
+    //     //     $statements = $this->tiktok->getStatements(
+    //     //         $client,
+    //     //         $shopCipher,
+    //     //     );
+    //     //     dd($statements);
+    //     //     return response()->json([
+    //     //         'shop' => $shop->shop_name,
+    //     //         'statements' => $statements,
+    //     //     ]);
+
+    //     // } catch (\Throwable $e) {
+    //     //     \Log::error('Lỗi financeShop: ' . $e->getMessage());
+    //     //     return response()->json(['error' => 'Lỗi truy xuất báo cáo tài chính'], 500);
+    //     // }
+
+    //     $shop = SellerHasShop::findOrFail($id);
+    //     $tiktokService = new TikTokService();
+    //     $accessToken = $tiktokService->getAccessToken($shop->user_id);
+    //     $shopCipher = $shop->shop_cipher; // bạn lấy từ DB hoặc gọi hàm fetchShopCipher()
+
+    //     $onholdOrders = $tiktokService->getOnHoldTransactions($accessToken, $shopCipher);
+    //     dd($onholdOrders);
+
+    //     foreach ($onholdOrders as $order) {
+    //         dump([
+    //             'order_id' => $order['order_id'],
+    //             'amount' => $order['amount'],
+    //             'fee' => $order['fee'],
+    //             'final_amount' => $order['final_amount'],
+    //             'status' => $order['status'],
+    //             'reason' => $order['withheld_reason'],
+    //         ]);
+    //     }
+    // }
+
     public function tiktokCallback(Request $request)
     {
         $code = $request->input('code');
@@ -311,7 +433,7 @@ class SellerHasShopController extends Controller
             $client = $this->tiktok->client();
             $accessToken = $this->tiktok->fetchAccessToken($client, $code);
             $client->setAccessToken($accessToken);
-
+            // dd($client);
             $shopCipher = $this->tiktok->fetchShopCipher($client);
             $client->setShopCipher($shopCipher);
 

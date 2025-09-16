@@ -70,12 +70,31 @@
                                 </select>
                             @endif
 
+                            <select name="team_id" class="form-select px-4 py-2 select2 ms-2">
+                                <option value="">-- All Teams --</option>
+                                @foreach ($teams as $team)
+                                    <option value="{{ $team->id }}"
+                                        {{ request('team_id') == $team->id ? 'selected' : '' }}>
+                                        {{ $team->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+
+                            <select id="bankStatus" name="filter_pending_nullbank" class="select2-bank"
+                                style="padding:5px 10px; border-radius:6px;">
+                                <option value="0" {{ request('filter_pending_nullbank') == '0' ? 'selected' : '' }}>
+                                    All Shops</option>
+                                <option value="1" {{ request('filter_pending_nullbank') == '1' ? 'selected' : '' }}>No
+                                    Bank Linked</option>
+                            </select>
+
                             <input type="text" name="search" value="{{ request('search') }}"
                                 class="form-control px-4 py-2 col-4" placeholder="Search ..." style="min-width: 250px;">
-                            <button type="submit" class="btn btn-outline-secondary px-4" id="btnsearch">
+                            <button type="submit" class="btn btn-outline-secondary px-2" id="btnsearch">
                                 <i class="fas fa-search"></i></button>
-                            <button type="button" class="btn btn-danger" onclick="resetFilters()"><i
-                                    class="fas fa-times"></i></button>
+                        </form>
+                        <form method="GET" action="{{ route('shop.index') }}" class="ms-4">
+                            <button type="submit" class="btn btn-danger"><i class="fas fa-times"></i></button>
                         </form>
                     </div>
 
@@ -99,12 +118,14 @@
                             <thead class="table-light text-uppercase">
                                 <tr>
                                     <th>#</th>
-                                    <th>Shop Name</th>
-                                    <th>Shop Code</th>
+                                    <th>Shop Name/ Shop Code</th>
+                                    <th>Team</th>
                                     <th>Email</th>
                                     <th>Bank</th>
+                                    <th>Pending</th>
                                     <th>On Hold</th>
                                     <th>Payout</th>
+                                    <th>Limit Order</th>
                                     <th>Seller</th>
                                     @canEdit
                                     <th>Actions</th>
@@ -115,17 +136,19 @@
                                 @forelse ($shops as $shop)
                                     <tr>
                                         <td>{{ $loop->iteration + $shops->firstItem() - 1 }}</td>
-                                        <td>{{ $shop->shop_name }}</td>
-                                        <td>{{ $shop->shop_code }}</td>
+                                        <td>{{ $shop->shop_name }} / {{ $shop->shop_code }}</td>
+                                        <td>{{ optional($shop->team)->name ?? 'Unassigned' }}</td>
                                         <td>{{ $shop->email }}</td>
                                         <td>{{ $shop->bank }}</td>
-                                        <td>{{ $shop->on_hold }}</td>
+                                        <td>{{ $shop->pending }}</td>
+                                        <td>{{ $shop->onhold }}</td>
                                         <td>{{ $shop->payout }}</td>
+                                        <td>{{ $shop->limit_order }}</td>
                                         <td>{{ optional($shop->seller)->name ?? 'Unassigned' }}</td>
                                         @canEdit
                                         <td>
                                             <button type="button" class="btn btn-sm btn-outline-primary"
-                                                onclick="openEditModal({{ $shop->id }}, '{{ addslashes($shop->shop_name) }}', '{{ $shop->shop_code }}', '{{ $shop->email }}', '{{ $shop->user_id }}', '{{ $shop->on_hold }}', '{{ $shop->payout }}')">
+                                                onclick="openEditModal({{ $shop->id }}, '{{ addslashes($shop->shop_name) }}', '{{ $shop->shop_code }}', '{{ $shop->email }}', '{{ $shop->user_id }}', '{{ $shop->team_id }}', '{{ $shop->on_hold }}', '{{ $shop->payout }}')">
                                                 <i class="fas fa-edit"></i>
                                             </button>
 
@@ -149,23 +172,42 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="text-center">No shops found.</td>
+                                        <td colspan="11" class="text-center">No shops found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
-                            <tfoot>
+                            <tfoot class="table-light fw-bold">
                                 <tr>
-                                    <td colspan="100%" class="text-end fw-bold">
+                                    <td colspan="5" class="text-end"></td>
+                                    <td>{{ number_format($totals['pending'], 2) }}</td>
+                                    <td>{{ number_format($totals['onhold'], 2) }}</td>
+                                    <td>{{ number_format($totals['payout'], 2) }}</td>
+                                    <td colspan="1"></td>
+                                    <td colspan="100%" class="text-end">
                                         Total shops: {{ $totalShops }}
                                     </td>
                                 </tr>
-                            </tfoot>
                         </table>
                     </div>
 
-                    <div class="d-flex justify-content-start">
-                        {{ $shops->appends(request()->query())->links() }}
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+                        <form method="GET" action="{{ route('shop.index') }}" class="d-flex align-items-center">
+                            @foreach (request()->except('perPage') as $key => $value)
+                                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                            @endforeach
+                            <select name="perPage" class="form-select" onchange="this.form.submit()">
+                                @foreach ([10, 20, 50, 100] as $size)
+                                    <option value="{{ $size }}"
+                                        {{ request('perPage', 10) == $size ? 'selected' : '' }}>{{ $size }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </form>
+                        <div>
+                            {{ $shops->appends(request()->only(['search', 'perPage', 'user_id', 'team_id']))->links() }}
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -200,10 +242,11 @@
         {{-- Modal: Edit Shop --}}
         <div class="modal fade" id="editShopModal" tabindex="-1" aria-labelledby="editShopLabel" aria-hidden="true">
             <div class="modal-dialog">
-                <form id="editShopForm" method="POST" class="modal-content">
+                <form method="POST" id="editShopForm" class="modal-content">
                     @csrf
                     @method('PUT')
                     <input type="hidden" name="id" id="editShopId">
+
                     <div class="modal-header">
                         <h5 class="modal-title" id="editShopLabel">Edit Shop</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -233,6 +276,15 @@
                             @endif
                         </div>
                         <div class="form-group mb-3">
+                            <label class="fw-bold">Team</label>
+                            <select name="team_id" id="editTeamId" class="form-select select2-edit">
+                                <option value="">-- Select Team --</option>
+                                @foreach ($teams as $team)
+                                    <option value="{{ $team->id }}">{{ $team->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
                             <label class="fw-bold">On Hold</label>
                             <input type="number" step="0.01" name="on_hold" id="editOnHold" class="form-control">
                         </div>
@@ -252,5 +304,16 @@
 
     @push('scripts')
         <script src="/js/shop.js"></script>
+        <script>
+            $(document).ready(function() {
+                $(".select2-bank").select2({
+                    dropdownAutoWidth: true,
+                    width: "100%",
+                    theme: "bootstrap-5",
+                    closeOnSelect: true,
+                    minimumResultsForSearch: Infinity,
+                });
+            });
+        </script>
     @endpush
 @endsection

@@ -137,7 +137,6 @@ function resetFilters() {
 // Handle export all
 function submitExport(mode) {
     document.getElementById("exportMode").value = mode;
-    document.getElementById('exportForm').submit();
     new bootstrap.Modal(document.getElementById("exportConfirmModal")).show();
 }
 

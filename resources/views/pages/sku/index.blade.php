@@ -87,6 +87,7 @@
                                     <th>SKU</th>
                                     <th>Product Name</th>
                                     <th>Base Cost</th>
+                                    <th>Price</th>
                                     <th>Quantity</th>
                                     <th>Tier</th>
                                     @canEdit
@@ -100,6 +101,7 @@
                                         <td>{{ $sku->sku }}</td>
                                         <td>{{ $sku->name }}</td>
                                         <td>{{ number_format($sku->cost, 1) }}</td>
+                                        <td>{{ number_format($sku->price, 1) }}</td>
                                         <td>{{ number_format($sku->quantity) }}</td>
                                         <td>{{ $sku->tier }}</td>
                                         @if (collect($accesses)->where('menu_id', 7)->first()->status == 2)
@@ -122,7 +124,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center">No SKUs found.</td>
+                                        <td colspan="7" class="text-center">No SKUs found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

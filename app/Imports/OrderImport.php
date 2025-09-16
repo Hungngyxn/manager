@@ -3,8 +3,10 @@
 namespace App\Imports;
 
 use App\Http\Controllers\ReportController;
+use App\Models\ErrorLog;
 use App\Models\Order;
 use App\Models\SellerHasShop;
+use App\Models\ShopMapping;
 use App\Models\Sku;
 use App\Models\SkuOrder;
 use App\Services\OrderService;
@@ -33,16 +35,18 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
         $hasValidOrders = false;
 
         try {
+            // existing keys to avoid duplicate import
             $existingKeys = array_flip(
                 Order::selectRaw("LOWER(CONCAT(order_id, '___', sku, '___', extra_id)) AS composite_key")
                     ->pluck('composite_key')
                     ->toArray()
             );
 
+            // group rows by order_id+sku+extra_id
             $grouped = $rows->groupBy(function ($row) {
-                $orderId = strtolower(trim($row['order_id']));
-                $extraId = strtolower(trim($row['sku_id']));
-                $rawSku = strtolower(trim($row['seller_sku']));
+                $orderId = strtolower(trim($row['order_id'] ?? ''));
+                $extraId = strtolower(trim($row['sku_id'] ?? ''));
+                $rawSku = strtolower(trim($row['seller_sku'] ?? ''));
 
                 $parsed = $this->parseSkuWithSkuOrder($rawSku, 1);
                 $skuCode = strtolower(trim($parsed['sku'] ?? $rawSku));
@@ -60,6 +64,7 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
                 $firstRow = $groupRows->first();
 
+                // skip canceled/returned
                 if (!empty($firstRow['cancelation_return_type'])) {
                     $this->skipped[] = ($firstRow['order_id'] ?? 'unknown') . ' - ' . ($firstRow['seller_sku'] ?? 'unknown') . ' (Canceled/Returned)';
                     continue;
@@ -67,66 +72,111 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
                 [$orderId, $skuCode, $extraId] = explode('___', $normalizedKey);
 
-                $shopName = strtolower(trim($firstRow['warehouse_name'])) ?? null;
+                $shopNameRaw = $firstRow['warehouse_name'] ?? null;
+                $shopName = ShopMapping::resolveShopName($shopNameRaw);
                 $userId = SellerHasShop::whereRaw('LOWER(shop_name) = ?', [$shopName])->value('user_id') ?? "Unassigned";
 
                 if (!$orderId || !$skuCode || !$shopName) {
-                    $this->skipped[] = $orderId . ' - ' . $skuCode . ' (missing data)';
                     continue;
                 }
 
-                $createdTimeRaw = $firstRow['created_time'] ?? null;
-                try {
-                    $createdAt = $createdTimeRaw
-                        ? Carbon::createFromFormat('m/d/Y g:i:s A', $createdTimeRaw)
-                        : now();
-                } catch (\Exception $e) {
-                    $this->skipped[] = "$orderId - $skuCode (invalid created_time)";
-                    continue;
+                // --- created_at parsing & check older than 3 days
+                $createdAt = null;
+                if (!empty($firstRow['created_time'])) {
+                    try {
+                        $createdAt = Carbon::createFromFormat('m/d/Y g:i:s A', $firstRow['created_time']);
+                    } catch (\Exception $e) {
+                        try {
+                            $createdAt = Carbon::parse($firstRow['created_time']);
+                        } catch (\Exception $e2) {
+                            $createdAt = now();
+                        }
+                    }
+                } else {
+                    $createdAt = now();
                 }
 
-                $originalQty = $groupRows->sum(fn($row) => (int) ($row['quantity'] ?? 1));
+                // if ($createdAt->lt(now()->subHours(84))) {
+                //     $this->logError($orderId, "Order date older than 3 days ({$createdAt->toDateString()})", $userId);
+                // }
 
-                $parsed = $this->parseSkuWithSkuOrder($firstRow['seller_sku'], $originalQty);
-                $skuFinal = strtolower(trim($parsed['sku']));
+                // quantity (expand packs)
+                $originalQty = $groupRows->sum(fn($r) => (int) ($r['quantity'] ?? 1));
+                $parsed = $this->parseSkuWithSkuOrder($firstRow['seller_sku'] ?? '', $originalQty);
+                $skuFinal = strtolower(trim($parsed['sku'] ?? ''));
                 $quantity = $parsed['quantity'];
 
                 if (empty($skuFinal) || $quantity <= 0) {
-                    $this->skipped[] = "$orderId - $skuCode (empty SKU or invalid quantity)";
                     continue;
                 }
 
                 $this->calculated[] = $parsed;
 
-                $total = $groupRows->sum(function ($row) {
-                    return floatval(
-                        ($row['sku_subtotal_before_discount'] ?? 0)
-                        - ($row['sku_seller_discount'] ?? 0)
-                        - ($row['shipping_fee_seller_discount'] ?? 0)
-                    );
-                });
-
+                // find sku in DB
                 $sku = Sku::whereRaw('LOWER(sku) = ?', [$skuFinal])->first();
-                $cost = $profit = $bonus = 0;
 
-                if ($sku) {
-                    if ($sku->quantity >= $quantity) {
-                        $sku->decrement('quantity', $quantity);
+                // --- check freeship trên toàn order_id
+                $rowsForSameOrder = $rows->where('order_id', $firstRow['order_id']);
+                $orderHasFreeship = $this->shouldApplyFreeship($rowsForSameOrder);
+                // dd($orderHasFreeship);
 
-                        $service = new OrderService($sku, $quantity, $total);
-                        $calculated = $service->calculate();
-                        $cost = $calculated['cost'];
-                        $profit = $calculated['profit'];
-                        $bonus = $calculated['bonus'];
-                    } else {
-                        $skuFinal .= ' not enough stock';
-                        $this->skipped[] = "$orderId - $skuFinal (Not enough stock. Available: {$sku->quantity}, Required: {$quantity})";
-                    }
-                } else {
-                    $skuFinal .= ' wrong sku';
-                    $this->skipped[] = "$orderId - $skuFinal (SKU not found in stock)";
+                // compute total
+                $total = 0.0;
+                $checkTotal = 0.0;
+                $fulfillFee = 0.0;
+
+                foreach ($groupRows as $r) {
+                    $rowSubtotal = floatval($r['sku_subtotal_before_discount'] ?? 0);
+                    $rowDiscount = floatval($r['sku_seller_discount'] ?? 0);
+                    $rowShipDisc = floatval($r['shipping_fee_seller_discount'] ?? 0);
+
+                    // tính thật (luôn trừ shipdisc)
+                    $total += ($rowSubtotal - $rowDiscount - $rowShipDisc);
+
+                    // tính để check freeship (chỉ bỏ shipdisc khi freeship)
+                    $rowShipDiscForCheck = $orderHasFreeship ? 0.0 : $rowShipDisc;
+                    $checkTotal += ($rowSubtotal - $rowDiscount - $rowShipDiscForCheck);
+
+                    $fulfillFee += floatval($r['fulfill_fee'] ?? 0);
                 }
 
+                // check priceRef vs checkTotal
+                if ($sku && is_numeric($sku->price)) {
+                    $priceRef = floatval($sku->price) * $parsed['price_ref_quantity'];
+
+                    if ($priceRef - $checkTotal > 8 && $checkTotal > 0) {
+                        $diffPct = $priceRef > 0 ? round((($priceRef - $checkTotal) / $priceRef) * 100, 2) : 100;
+                        $this->logError(
+                            $orderId,
+                            "Total lower than SKU price by {$diffPct}% (checkTotal: {$checkTotal}, priceRef: {$priceRef})",
+                            $userId
+                        );
+                    }
+                } else {
+                    if (!$sku) {
+                        $this->logError($orderId, $skuFinal . " not found in skus table", $userId);
+                    } else {
+                        $this->logError($orderId, $skuFinal . " price invalid or missing", $userId);
+                    }
+                }
+
+                // compute cost/profit/bonus
+                $cost = $profit = $bonus = 0.0;
+                if ($sku) {
+                    try {
+                        $service = new OrderService($sku, $quantity, $total, $fulfillFee);
+                        $calculated = $service->calculate();
+
+                        $cost = $calculated['cost'] ?? 0.0;
+                        $profit = $calculated['profit'] ?? 0.0;
+                        $bonus = $calculated['bonus'] ?? 0.0;
+                        $total = $calculated['total'] ?? $total;
+                    } catch (\Throwable $e) {
+                        $this->skipped[] = "Calculation failed: " . $e->getMessage();
+                    }
+                }
+
+                // save order
                 $checkedShop = SellerHasShop::whereRaw('LOWER(shop_name) = ?', [$shopName])->value('shop_name');
 
                 $order = new Order([
@@ -134,10 +184,10 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
                     'sku' => $skuFinal,
                     'shop_name' => $checkedShop ?? $shopName . ' - New Shop',
                     'quantity' => $quantity,
-                    'cost' => $cost,
-                    'profit' => $profit,
-                    'bonus' => $bonus,
-                    'total' => $total,
+                    'cost' => round($cost, 2),
+                    'profit' => round($profit, 2),
+                    'bonus' => round($bonus, 2),
+                    'total' => round($total, 2),
                     'order_id' => $orderId,
                     'user_id' => $userId,
                 ]);
@@ -153,7 +203,6 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
 
             if ($hasValidOrders) {
                 DB::commit();
-
                 foreach ($affectedUsersAndDates as [$userId, $date]) {
                     ReportController::aggregateForDate($userId, $date);
                 }
@@ -162,7 +211,6 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->skipped[] = 'File import failed: ' . $e->getMessage();
         }
     }
 
@@ -170,29 +218,112 @@ class OrderImport implements ToCollection, WithHeadingRow, WithStartRow
     {
         $rawSku = strtolower(trim($rawSku));
 
-        $skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
+        // Nếu SKU không chứa "pack" -> chỉ dùng SkuOrder mapping (nếu có)
+        if (strpos($rawSku, 'pack') === false) {
+            $skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
 
-        if ($skuOrder) {
-            $skuFromOrder = strtolower(trim($skuOrder->sku));
+            if ($skuOrder) {
+                $skuFromOrder = strtolower(trim($skuOrder->sku));
+                $mappedQuantity = $originalQuantity * max((int) $skuOrder->quantity_per_pack, 1);
 
-            return [
-                'sku' => $skuFromOrder ?: $rawSku,
-                'quantity' => $originalQuantity * max((int) $skuOrder->quantity_per_pack, 1),
-            ];
-        }
+                return [
+                    'sku' => $skuFromOrder ?: $rawSku,
+                    'quantity' => $mappedQuantity,            // dùng cho cost, profit
+                    'price_ref_quantity' => $originalQuantity // dùng cho priceRef
+                ];
+            }
 
-        $skuExists = Sku::whereRaw('LOWER(sku) = ?', [$rawSku])->exists();
-
-        if ($skuExists) {
             return [
                 'sku' => $rawSku,
                 'quantity' => $originalQuantity,
+                'price_ref_quantity' => $originalQuantity,
+            ];
+        }
+
+        // Nếu SKU có "pack" -> so sánh 2 cách và chọn cost thấp nhất
+        $results = [];
+
+        // Cách 1: lấy trực tiếp từ bảng skus
+        $sku1 = Sku::whereRaw('LOWER(sku) = ?', [$rawSku])->first();
+        if ($sku1) {
+            $results[] = [
+                'sku' => $rawSku,
+                'quantity' => $originalQuantity,
+                'cost' => $sku1->cost * $originalQuantity,
+                'price_ref_quantity' => $originalQuantity,
+            ];
+        }
+
+        // Cách 2: mapping qua sku_orders
+        $skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
+        if ($skuOrder) {
+            $skuFromOrder = strtolower(trim($skuOrder->sku));
+            $mappedQuantity = $originalQuantity * max((int) $skuOrder->quantity_per_pack, 1);
+
+            $sku2 = Sku::whereRaw('LOWER(sku) = ?', [$skuFromOrder])->first();
+            if ($sku2) {
+                $results[] = [
+                    'sku' => $skuFromOrder,
+                    'quantity' => $mappedQuantity,
+                    'cost' => $sku2->cost * $mappedQuantity,
+                    'price_ref_quantity' => $mappedQuantity, // với pack thì price_ref cũng theo mapped
+                ];
+            }
+        }
+
+        if (!empty($results)) {
+            usort($results, fn($a, $b) => $a['cost'] <=> $b['cost']);
+            $best = $results[0];
+            return [
+                'sku' => $best['sku'],
+                'quantity' => $best['quantity'],
+                'price_ref_quantity' => $best['price_ref_quantity'],
             ];
         }
 
         return [
             'sku' => $rawSku,
             'quantity' => $originalQuantity,
+            'price_ref_quantity' => $originalQuantity,
         ];
+    }
+
+    /**
+     * Check freeship condition: 
+     * - All SKUs in the order_id are freeshipping
+     * - Total > 30
+     */
+    private function shouldApplyFreeship(Collection $rowsForSameOrder): bool
+    {
+        $orderTotal = $rowsForSameOrder->sum(function ($r) {
+            return floatval($r['sku_subtotal_before_discount'] ?? 0)
+                - floatval($r['sku_seller_discount'] ?? 0);
+        });
+
+        $allFreeship = $rowsForSameOrder->every(function ($r) {
+            $skuCode = strtolower(trim($r['seller_sku'] ?? ''));
+            $skuObj = Sku::whereRaw('LOWER(sku) = ?', [$skuCode])->first();
+            // dd($skuObj);
+            return $skuObj && $skuObj->freeshipping;
+        });
+
+        // dd($orderTotal, $allFreeship);
+
+        return $allFreeship && $orderTotal > 30;
+    }
+
+    private function logError($orderId, $message, $userId)
+    {
+        try {
+            ErrorLog::updateOrCreate([
+                'order_id' => $orderId,
+                'error_message' => $message,
+                'user_id' => $userId,
+            ]);
+        } catch (\Throwable $e) {
+            $this->skipped[] = "Log failed: " . $message;
+        }
+
+        $this->skipped[] = $message;
     }
 }

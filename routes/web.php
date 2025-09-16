@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdsFeeController;
+use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SellerHasShopController;
@@ -41,6 +42,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('tiktok')->name('tiktok.')->group(function () {
         Route::get('/connect', [SellerHasShopController::class, 'connectTikTok'])->name('connect');
         Route::get('/shop/{id}/reconnect', [SellerHasShopController::class, 'reconnectTikTok'])->name('reconnect');
+        Route::get('/shop/{id}/finance', [SellerHasShopController::class, 'financeShop'])->name('finance');
         Route::get('/callback', [SellerHasShopController::class, 'tiktokCallback'])->name('callback');
     });
 
@@ -154,6 +156,12 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::put('/{account}', [ShopAccountController::class, 'update'])->name('update');
         Route::get('/{account}/edit', [ShopAccountController::class, 'edit'])->name('edit');
         Route::post('/batch-assign', [ShopAccountController::class, 'batchAssign'])->name('batch-assign');
+    });
+
+    Route::prefix('log')->name('log.')->group(function () {
+        Route::get('/', [ErrorLogController::class, 'index'])->name('index');
+        Route::get('/create', [ErrorLogController::class, 'create'])->name('create');
+        Route::post('/', [ErrorLogController::class, 'store'])->name('store');
     });
 
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');

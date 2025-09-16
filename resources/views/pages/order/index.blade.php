@@ -19,6 +19,8 @@
                         @if (count($sellers) > 0)
                             <select name="user_id" class="form-select px-3 py-2 select2">
                                 <option value="">-- All Sellers --</option>
+                                <option value="Unassigned" {{ request('user_id') === 'Unassigned' ? 'selected' : '' }}>
+                                    Unassigned</option>
                                 @foreach ($sellers as $seller)
                                     <option value="{{ $seller->id }}"
                                         {{ request('user_id') == $seller->id ? 'selected' : '' }}>
@@ -220,8 +222,11 @@
                                 @endforelse
                             </tbody>
                             <tfoot>
-                                <tr>aaaaa: {{ $orderCount }}</tr>
+                                <tr>
+                                    <strong>Total order: {{ $orderCount }}</strong>
+                                </tr>
                             </tfoot>
+
                         </table>
                     </div>
 

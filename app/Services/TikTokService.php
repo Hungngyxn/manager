@@ -9,6 +9,9 @@ use EcomPHP\TiktokShop\Client;
 use App\Models\Order;
 use App\Models\SellerHasShop;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TikTokService
 {
@@ -22,7 +25,14 @@ class TikTokService
 
     public function authorizeUrl(): string
     {
-        return 'https://developer.sellersprint.com/open/authorize?key=0J8CJNYBtfLdRBjickYSGA%3D%3D';
+        $redirectUri = urlencode(config('tiktokshop.redirect_uri'));
+        $state = session('tiktok_state') ?? Str::random(40);
+
+        return "https://auth.tiktok-shops.com/oauth/authorize" .
+            "?app_key=" . config('tiktokshop.app_key') .
+            "&state={$state}" .
+            "&redirect_uri={$redirectUri}" .
+            "&response_type=code";
     }
 
     public function getAccessToken(int $userId): string
@@ -34,17 +44,28 @@ class TikTokService
         }
 
         if (now()->gte($token->expires_at)) {
-            // Token hết hạn → gọi refresh API
             $client = $this->client();
-            $newToken = $client->auth()->refreshNewToken($token->refresh_token);
+            try {
+                $newToken = $client->auth()->refreshNewToken($token->refresh_token);
 
-            $token->update([
-                'access_token' => $newToken['access_token'],
-                'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
-                'expires_at' => now()->addSeconds($newToken['expires_in']),
-            ]);
+                if (!isset($newToken['access_token'])) {
+                    throw new \Exception("Không thể làm mới access_token");
+                }
 
-            return $newToken['access_token'];
+                $token->update([
+                    'access_token' => $newToken['access_token'],
+                    'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
+                    'expires_at' => now()->addSeconds($newToken['expires_in']),
+                ]);
+
+                return $newToken['access_token'];
+            } catch (\Exception $e) {
+                Log::error('Refresh token failed', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
         }
 
         return $token->access_token;
@@ -52,29 +73,36 @@ class TikTokService
 
     public function fetchAccessToken(Client $client, string $code): string
     {
-        $token = $client->auth()->getToken($code);
-        $access_token = $token['access_token'] ?? null;
-        $refresh_token = $token['refresh_token'] ?? null;
-        $expires_in = Carbon::createFromTimestamp($token['access_token_expire_in']) ?? null;
-        $shop_name = $token['seller_name'] ?? null;
+        try {
+            $token = $client->auth()->getToken($code);
+            $access_token = $token['access_token'] ?? null;
+            $refresh_token = $token['refresh_token'] ?? null;
+            $expires_in = Carbon::createFromTimestamp($token['access_token_expire_in']) ?? null;
+            $shop_name = $token['seller_name'] ?? null;
 
-        if (!$access_token || !$expires_in) {
-            throw new \Exception('Không lấy được access token hoặc thời gian hết hạn');
+            if (!$access_token || !$expires_in) {
+                throw new \Exception('Không lấy được access token hoặc thời gian hết hạn');
+            }
+
+            TiktokToken::updateOrCreate(
+                ['shop_name' => $shop_name],
+                [
+                    'user_id' => auth()->id(),
+                    'access_token' => $access_token,
+                    'refresh_token' => $refresh_token,
+                    'expires_at' => $expires_in,
+                ]
+            );
+
+            return $access_token;
+        } catch (\Exception $e) {
+            Log::error('Lỗi lấy token TikTok ban đầu', [
+                'code' => $code,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
-
-        TiktokToken::updateOrCreate(
-            ['shop_name' => $shop_name],
-            [
-                'user_id' => auth()->id(),
-                'access_token' => $access_token,
-                'refresh_token' => $refresh_token,
-                'expires_at' => $expires_in,
-            ]
-        );
-
-        return $access_token;
     }
-
 
     public function fetchShopCipher(Client $client): string
     {
@@ -91,6 +119,28 @@ class TikTokService
         $response = $client->Finance->getStatements($body);
 
         return $shops['shops'][0]['cipher'] ?? throw new \Exception('Không lấy được shop_cipher');
+    }
+
+    public function getStatements(Client $client, string $shopCipher): array
+    {
+        $params = [
+            'page_size' => 50,
+            'page' => 1,
+            'shop_cipher' => $shopCipher,
+            'sort_field' => 'statement_time',
+            'sort_order' => 'DESC',
+        ];
+
+        try {
+            $response = $client->Finance->getStatements($params);
+            return $response['statements'] ?? [];
+        } catch (\Exception $e) {
+            Log::error('Lỗi lấy danh sách statement TikTok', [
+                'params' => $params,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
     }
 
     public function fetchOrderList(Client $client, int $pageSize = 100): array
@@ -114,6 +164,7 @@ class TikTokService
             $allOrders = array_merge($allOrders, $orders);
 
         } while (!empty($pageToken));
+
         return $allOrders;
     }
 
@@ -151,12 +202,9 @@ class TikTokService
                     continue;
                 }
 
-                // $displayStatus = strtoupper( ?? '');
-
                 $total = isset($item['sale_price']) ? $item['sale_price'] * $quantity : 0;
                 $status = $item['display_status'];
 
-                // Tính toán cost, profit, bonus
                 $orderService = new OrderService($sku, $quantity, $total);
                 $calculated = $orderService->calculate();
 
@@ -193,7 +241,6 @@ class TikTokService
 
     public function saveOrUpdateShop(string $accessToken, string $shopCipher): void
     {
-
         SellerHasShop::updateOrCreate(
             ['shop_code' => session('shop_code')],
             [
@@ -204,5 +251,41 @@ class TikTokService
                 'shop_cipher' => $shopCipher,
             ]
         );
+    }
+
+    public function getOnHoldTransactions(string $accessToken, string $shopCipher, int $offset = 0, int $limit = 50): array
+    {
+        $params = [
+            'transaction_type' => 5, // onhold
+            'offset' => $offset,
+            'limit' => $limit,
+            'shop_cipher' => $shopCipher,
+        ];
+
+        $url = 'https://seller-us.tiktok.com/api/v1/pay/statement/balance/detail/query';
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept' => 'application/json',
+            ])->get($url, $params);
+
+            if ($response->successful()) {
+                return $response->json('data.data') ?? [];
+            } else {
+                Log::error('Gọi API onhold thất bại', [
+                    'url' => $url,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                return [];
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception khi gọi API onhold', [
+                'error' => $e->getMessage(),
+                'params' => $params,
+            ]);
+            return [];
+        }
     }
 }

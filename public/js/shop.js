@@ -4,6 +4,7 @@ function openEditModal(
     shopCode,
     email,
     sellerId,
+    teamId,
     onHold,
     payout
 ) {
@@ -13,6 +14,7 @@ function openEditModal(
     $("#editShopCode").val(shopCode);
     $("#editEmail").val(email);
     $("#editSellerId").val(sellerId).trigger("change");
+    $("#editTeamId").val(teamId).trigger("change");
     $("#editOnHold").val(onHold);
     $("#editPayout").val(payout);
 
@@ -42,14 +44,13 @@ $(document).ready(function () {
 });
 
 function resetFilters() {
-    const form = document.getElementById("filterForm");
-    form.querySelector('input[name="search"]').value = "";
-    if (form.querySelector('select[name="user_id"]')) {
-        $(form.querySelector('select[name="user_id"]'))
-            .val("")
-            .trigger("change");
-    }
-    document.getElementById("btnsearch").click();
+    // const form = document.getElementById("filterForm");
+    // form.querySelector('input[name="search"]').value = "";
+
+    // $(form.querySelector('select[name="user_id"]')).val("").trigger("change");
+    // $(form.querySelector('select[name="team_id"]')).val("").trigger("change");
+    // document.getElementById("btnsearch").click();
+    window.location.href = "{{ route('shops.index') }}";
 }
 
 function handleImport(input) {
