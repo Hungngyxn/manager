@@ -104,7 +104,7 @@ class TikTokService
         }
     }
 
-    public function fetchShopCipher(Client $client): string
+    public function fetchShopCipher(Client $client)
     {
         $shops = $client->Authorization->getAuthorizedShop();
 
@@ -118,7 +118,7 @@ class TikTokService
 
         $response = $client->Finance->getStatements($body);
 
-        return $shops['shops'][0]['cipher'] ?? throw new \Exception('Không lấy được shop_cipher');
+        return $shops['shops'][0] ?? throw new \Exception('Không lấy được shop_cipher');
     }
 
     public function getStatements(Client $client, string $shopCipher): array
@@ -153,11 +153,15 @@ class TikTokService
                 'page_size' => $pageSize,
             ];
 
+            $body = [
+                'order_status' => 'AWAITING_COLLECTION'
+            ];
+
             if ($pageToken) {
                 $params['page_token'] = $pageToken;
             }
 
-            $response = $client->Order->getOrderList($params);
+            $response = $client->Order->getOrderList($params, $body);
             $orders = $response['orders'] ?? [];
             $pageToken = $response['next_page_token'] ?? null;
 
@@ -239,13 +243,17 @@ class TikTokService
         }
     }
 
-    public function saveOrUpdateShop(string $accessToken, string $shopCipher): void
+    public function saveOrUpdateShop(string $accessToken, array $shop): void
     {
+        $shopName = $shop['name'];
+        $shopCode = $shop['code'];
+        $shopCipher = $shop['cipher'];
+
         SellerHasShop::updateOrCreate(
-            ['shop_code' => session('shop_code')],
+            ['shop_code' => $shopCode],
             [
-                'shop_name' => session('shop_name'),
-                'shop_code' => session('shop_code'),
+                'shop_name' => $shopName,
+                'shop_code' => $shopCode,
                 'user_id' => Auth::id(),
                 'access_token' => $accessToken,
                 'shop_cipher' => $shopCipher,

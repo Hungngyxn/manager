@@ -1,11 +1,14 @@
 <?php
 
 use App\Http\Controllers\AdsFeeController;
+use App\Http\Controllers\BonusController;
 use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ProductListController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SellerHasShopController;
 use App\Http\Controllers\ShopAccountController;
+use App\Http\Controllers\ShopUsController;
 use App\Http\Controllers\SkuController;
 use App\Http\Controllers\SkuOrderController;
 use App\Http\Controllers\TeamsController;
@@ -109,6 +112,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
         Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
+        Route::get('/financeShop', [SellerHasShopController::class, 'financeShop'])->name('financeShop');
     });
 
     // Sku
@@ -158,14 +162,24 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/batch-assign', [ShopAccountController::class, 'batchAssign'])->name('batch-assign');
     });
 
+    Route::prefix('shopus')->name('shopus.')->group(function () {
+        Route::get('/shopus', [ShopUsController::class, 'index'])->name('index');
+        Route::post('/shopus/update', [ShopUsController::class, 'update'])->name('update');
+    });
+
     Route::prefix('log')->name('log.')->group(function () {
         Route::get('/', [ErrorLogController::class, 'index'])->name('index');
         Route::get('/create', [ErrorLogController::class, 'create'])->name('create');
         Route::post('/', [ErrorLogController::class, 'store'])->name('store');
     });
 
+    Route::prefix('bonus')->name('bonus.')->group(function () {
+        Route::get('/', [BonusController::class, 'index'])->name('index');
+    });
+
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');
     Route::get('/ads-fee/fetch', [AdsFeeController::class, 'fetch'])->name('ads-fee.fetch');
     Route::post('/ads-fee/import', [AdsFeeController::class, 'import'])->name('ads-fee.import');
 
+    Route::post('/product-mapping/import', [ProductListController::class, 'import'])->name('product-mapping.import');
 });

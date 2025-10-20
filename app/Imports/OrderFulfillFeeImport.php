@@ -15,41 +15,26 @@ class OrderFulfillFeeImport implements ToCollection, WithHeadingRow
     public function collection(Collection $rows)
     {
         foreach ($rows as $row) {
-            $extraId = trim($row['extra_id'] ?? '');
-            $sku = trim($row['sku'] ?? '');
-            $fulfillFeeRaw = $row['fulfill_fee'] ?? null;
+            $orderId = trim($row['order_number'] ?? '');
+            $productName = trim($row['ten_san_pham'] ?? '');
+            $fulfillFeeRaw = $row['tien_dich_vu'] ?? null;
 
-            // Check missing data
-            if (empty($extraId) || empty($sku)) {
-                $this->skipped[] = "[Missing Extra ID or SKU]";
+            if (!$orderId || !$productName) {
+                $this->skipped[] = $orderId;
                 continue;
             }
 
-            // Convert fulfill_fee to float (handle comma)
-            $fulfillFee = is_numeric(str_replace(',', '.', $fulfillFeeRaw))
-                ? floatval(str_replace(',', '.', $fulfillFeeRaw))
-                : null;
-
-            if ($fulfillFee === null) {
-                $this->skipped[] = "$extraId / $sku - Invalid Fulfill Fee";
-                continue;
-            }
-
-            // Find order by extra_id + sku
-            $order = Order::where('extra_id', $extraId)
-                ->where('sku', $sku)
+            $order = Order::where('order_id', $orderId)
+                ->where('product_name', $productName)
                 ->first();
 
             if ($order) {
-                $order->fulfill_fee = $fulfillFee;
-
-                // Recalculate profit
-                $order->profit = $order->total - $order->cost - $fulfillFee;
-
+                $order->fulfill_fee = $fulfillFeeRaw;
                 $order->save();
-                $this->updated[] = "$extraId / $sku";
+
+                $this->updated[] = $orderId;
             } else {
-                $this->skipped[] = "$extraId / $sku - Order not found";
+                $this->skipped[] = $orderId;
             }
         }
     }

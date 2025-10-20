@@ -151,12 +151,12 @@ class ReportController extends Controller
         $unit_sale = $orders->sum('quantity');
         $revenue = $orders->sum('total');
         $base_cost = $orders->sum('cost');
-        $total_bonus = 0;
+        // $total_bonus = 0;
 
-        $total_ads = AdsFee::where('user_id', $userId)
-            ->whereDate('date', $date)
-            ->sum('ads');
-        $ads_per_unit = $unit_sale > 0 ? $total_ads / $unit_sale : 0;
+        // $total_ads = AdsFee::where('user_id', $userId)
+        //     ->whereDate('date', $date)
+        //     ->sum('ads');
+        // $ads_per_unit = $unit_sale > 0 ? $total_ads / $unit_sale : 0;
 
         foreach ($orders as $order) {
             $sku = Sku::with('tierBonus')->where('sku', $order->sku)->first();
@@ -166,19 +166,19 @@ class ReportController extends Controller
             // }
 
             if ($sku && $sku->tierBonus && is_numeric($sku->tierBonus->bonus)) {
-                $bonus_pct = $sku->tierBonus->bonus / 100;
+                // $bonus_pct = $sku->tierBonus->bonus / 100;
                 $unit_profit = 0;
 
                 if ($order->quantity > 0) {
                     $unit_profit = (($order->total - ($sku->cost * $order->quantity)) / $order->quantity)
-                        - $order->fulfill_fee
-                        - $ads_per_unit;
+                        - $order->fulfill_fee;
+                        // - $ads_per_unit;
                 }
 
                 if ($sku->tierBonus->tier != 'Tier 1') {
                     $unit_profit *= 1.5;
                 }
-                $total_bonus += $bonus_pct * $order->quantity * $unit_profit;
+                // $total_bonus += $bonus_pct * $order->quantity * $unit_profit;
             }
         }
 
@@ -189,7 +189,7 @@ class ReportController extends Controller
                 'revenue' => $revenue,
                 'base_cost' => $base_cost,
                 'profit' => $revenue - $base_cost,
-                'bonus' => $total_bonus,
+                // 'bonus' => $total_bonus,
                 'last_calculated_at' => now(),
             ]
         );

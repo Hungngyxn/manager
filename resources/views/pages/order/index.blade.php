@@ -367,11 +367,6 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body px-4">
-                    <div class="mb-3">
-                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('orders.download-sample') }}">
-                            <i class="fas fa-download me-2 text-success"></i> Download Sample
-                        </a>
-                    </div>
                     <form action="{{ route('orders.import.fulfill_fee') }}" method="POST" enctype="multipart/form-data"
                         id="fulfillFeeForm">
                         @csrf

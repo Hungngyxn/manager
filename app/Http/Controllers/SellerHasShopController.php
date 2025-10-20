@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\SellerHasShop;
 use App\Models\ShopAccount;
 use App\Models\Team;
+use App\Models\TiktokToken;
 use App\Models\User;
 use App\Services\TikTokService;
 use Illuminate\Database\QueryException;
@@ -306,7 +307,6 @@ class SellerHasShopController extends Controller
         $shopName = trim($data['profile_name']);
         $shopCode = $data['profile_code'] ?? null;
 
-        // Tìm shop theo shop_name
         if (!empty($shopCode)) {
             $shop = SellerHasShop::where('shop_code', $shopCode)->first();
         } else {
@@ -367,58 +367,76 @@ class SellerHasShopController extends Controller
         return redirect($this->tiktok->authorizeUrl());
     }
 
-    // public function financeShop($id)
-    // {
-    //     // $shop = SellerHasShop::findOrFail($id);
+    public function financeShop()
+    {
+        $shop = SellerHasShop::findOrFail(2601);
 
-    //     // try {
-    //     //     $client = $this->tiktok->client();
+        try {
+            $client = $this->tiktok->client();
+            $token = TiktokToken::where('shop_name', $shop->shop_name)->first();
 
-    //     //     // Lấy access token từ DB hoặc làm mới nếu cần
-    //     //     $accessToken = $this->tiktok->getAccessToken($shop->user_id);
-    //     //     $client->setAccessToken($accessToken);
+            $client = $this->tiktok->client();
+            $client->setAccessToken($token->access_token);
+            $client->setShopCipher($shop->shop_cipher);
 
-    //     //     // Lấy shop_cipher từ DB (nếu không có thì báo lỗi)
-    //     //     $shopCipher = $shop->shop_cipher;
-    //     //     if (!$shopCipher) {
-    //     //         return response()->json(['error' => 'Shop chưa được liên kết cipher'], 400);
-    //     //     }
+            $orders = $this->tiktok->fetchOrderList($client);
+            $order_id = $orders[0]['id'];
+            // $response = $client->Order->getOrderDetail($order_id);
 
-    //     //     // Lấy danh sách báo cáo theo tháng hiện tại
-    //     //     $statements = $this->tiktok->getStatements(
-    //     //         $client,
-    //     //         $shopCipher,
-    //     //     );
-    //     //     dd($statements);
-    //     //     return response()->json([
-    //     //         'shop' => $shop->shop_name,
-    //     //         'statements' => $statements,
-    //     //     ]);
+            // $response = $client->Fulfillment->getPackageShippingDocument("1154904338926440514", 'SHIPPING_LABEL', 'A6');
+            // $response = $client->Fulfillment->createPackages("577131612446625858");
 
-    //     // } catch (\Throwable $e) {
-    //     //     \Log::error('Lỗi financeShop: ' . $e->getMessage());
-    //     //     return response()->json(['error' => 'Lỗi truy xuất báo cáo tài chính'], 500);
-    //     // }
 
-    //     $shop = SellerHasShop::findOrFail($id);
-    //     $tiktokService = new TikTokService();
-    //     $accessToken = $tiktokService->getAccessToken($shop->user_id);
-    //     $shopCipher = $shop->shop_cipher; // bạn lấy từ DB hoặc gọi hàm fetchShopCipher()
+            // dd($response);       
 
-    //     $onholdOrders = $tiktokService->getOnHoldTransactions($accessToken, $shopCipher);
-    //     dd($onholdOrders);
 
-    //     foreach ($onholdOrders as $order) {
-    //         dump([
-    //             'order_id' => $order['order_id'],
-    //             'amount' => $order['amount'],
-    //             'fee' => $order['fee'],
-    //             'final_amount' => $order['final_amount'],
-    //             'status' => $order['status'],
-    //             'reason' => $order['withheld_reason'],
-    //         ]);
-    //     }
-    // }
+            // dd($response);
+
+            // // Lấy access token từ DB hoặc làm mới nếu cần
+            // $accessToken = $this->tiktok->getAccessToken($shop->user_id);
+            // $client->setAccessToken($accessToken);
+
+            // // Lấy shop_cipher từ DB (nếu không có thì báo lỗi)
+            // $shopCipher = $shop->shop_cipher;
+            // if (!$shopCipher) {
+            //     return response()->json(['error' => 'Shop chưa được liên kết cipher'], 400);
+            // }
+
+            // // Lấy danh sách báo cáo theo tháng hiện tại
+            // $statements = $this->tiktok->getOnHoldTransactions(
+            //     $accessToken,
+            //     $shopCipher,
+            // );
+            // dd($statements);
+            // return response()->json([
+            //     'shop' => $shop->shop_name,
+            //     'statements' => $statements,
+            // ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Lỗi financeShop: ' . $e);
+            return response()->json(['error' => 'Lỗi truy xuất báo cáo tài chính'], 500);
+        }
+
+        // $shop = SellerHasShop::findOrFail($id);
+        // $tiktokService = new TikTokService();
+        // $accessToken = $tiktokService->getAccessToken($shop->user_id);
+        // $shopCipher = $shop->shop_cipher; // bạn lấy từ DB hoặc gọi hàm fetchShopCipher()
+
+        // $onholdOrders = $tiktokService->getOnHoldTransactions($accessToken, $shopCipher);
+        // dd($onholdOrders);
+
+        // foreach ($onholdOrders as $order) {
+        //     dump([
+        //         'order_id' => $order['order_id'],
+        //         'amount' => $order['amount'],
+        //         'fee' => $order['fee'],
+        //         'final_amount' => $order['final_amount'],
+        //         'status' => $order['status'],
+        //         'reason' => $order['withheld_reason'],
+        //     ]);
+        // }
+    }
 
     public function tiktokCallback(Request $request)
     {
@@ -434,10 +452,10 @@ class SellerHasShopController extends Controller
             $accessToken = $this->tiktok->fetchAccessToken($client, $code);
             $client->setAccessToken($accessToken);
             // dd($client);
-            $shopCipher = $this->tiktok->fetchShopCipher($client);
-            $client->setShopCipher($shopCipher);
+            $shop = $this->tiktok->fetchShopCipher($client);
+            $client->setShopCipher($shop['cipher']);
 
-            $this->tiktok->saveOrUpdateShop($accessToken, $shopCipher);
+            $this->tiktok->saveOrUpdateShop($accessToken, $shop);
 
             DB::commit();
 
