@@ -25,20 +25,25 @@ class OrderService
 
     public function calculate(): array
     {
-        // Tính chi phí gốc
         $this->cost = $this->sku->cost * $this->quantity;
 
-        // Tính lợi nhuận
         $this->profit = $this->total - $this->cost - $this->fulfill_fee;
 
-        // Tính thưởng theo tier nếu có
+        if ($this->sku->tierBonus->tier != 'Tier 1') {
+            $this->cost *= 1.5;
+            $this->profit *= 1.5;
+            $this->total *= 1.5;
+        }
+
         $bonus_pct = $this->sku->tier->bonus ?? 0;
         $this->bonus = $this->profit * ($bonus_pct / 100);
 
         return [
-            'cost'   => round($this->cost, 2),
+            'cost' => round($this->cost, 2),
             'profit' => round($this->profit, 2),
-            'bonus'  => round($this->bonus, 2),
+            'bonus' => round($this->bonus, 2),
+            'total' => round($this->total, 2),
         ];
     }
+
 }

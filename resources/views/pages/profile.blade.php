@@ -13,6 +13,10 @@
             <div class="alert alert-success">{{ session('status') }}</div>
         @endif
 
+        @if (session('error'))
+            <div class="alert alert-danger">{{ session('error') }}</div>
+        @endif
+
         <div class="row">
             <div class="col-12 mb-3">
                 <div class="card shadow-sm bg-light p-4">
@@ -35,8 +39,7 @@
                         {{-- Email --}}
                         <div class="mb-3">
                             <label for="email" class="form-label fw-bold">Username</label>
-                            <input id="email" name="email"
-                                class="form-control @error('email') is-invalid @enderror"
+                            <input id="email" name="email" class="form-control @error('email') is-invalid @enderror"
                                 value="{{ old('email', $profile->email) }}"
                                 {{ $profile->role->name !== 'Administrator' ? 'readonly' : '' }}>
                             @error('email')

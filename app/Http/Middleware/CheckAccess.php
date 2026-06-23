@@ -27,12 +27,14 @@ class CheckAccess
         } else if ($name == "orders") {
             $name = "order";
         } else if ($name == "account") {
-            $name = "account";   
-        } else if ($name == "shops") {
-            $name = "shop";   
-        }else if ($name == "profile") {
             $name = "account";
-        }else if ($name == "sku") {
+        } else if ($name == "shops") {
+            $name = "shop";
+        } else if ($name == "profile") {
+            $name = "account";
+        } else if ($name == "sku") {
+            $name = "sku";
+        } else if ($name == "sku-orders") {
             $name = "sku";
         } else if ($name == "team") {
             $name = "team";
@@ -42,16 +44,30 @@ class CheckAccess
             $name = "report";
         } else if ($name == "tiktok") {
             $name = "shop";
+        } else if ($name == "shop-accounts") {
+            $name = "shop";
+        } else if ($name == "shopus") {
+            $name = "shop";
+        } else if ($name == "log") {
+            $name = "log";
+        } else if ($name == "bonus") {
+            $name = "bonus";
+        } else if ($name == "track") {
+            $name = "track";
         }
+
+
         $menuId = Menu::whereName($name)->first()->id;
         $accessType = Access::where([
-            ["menu_id",'=', $menuId],
-            ["role_id",'=', auth()->user()->role_id],
+            ["menu_id", '=', $menuId],
+            ["role_id", '=', auth()->user()->role_id],
         ])->first()->status;
 
-        if($accessType < 1) {
+        if ($accessType < 1) {
             return redirect()->route('dashboard');
         }
+
+        session()->put('access_level', $accessType);
 
         return $next($request);
     }

@@ -17,11 +17,21 @@ class SellerHasShop extends Model
         'shop_code',
         'shop_cipher',
         'bank',
+        'onhold',
+        'pending',
+        'payout',
+        'email',
+        'team_id'
     ];
 
     public function seller()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function team()
+    {
+        return $this->belongsTo(Team::class, 'team_id');
     }
 
     public function orders()

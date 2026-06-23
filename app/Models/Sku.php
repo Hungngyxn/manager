@@ -10,7 +10,11 @@ class Sku extends Model
 
     protected $table = 'skus';
 
-    protected $fillable = ['sku', 'name', 'cost', 'quantity', 'tier'];
+    protected $casts = [
+        'freeshipping' => 'boolean',
+    ];
+
+    protected $fillable = ['sku', 'name', 'cost', 'quantity', 'tier', 'price', 'freeshipping'];
 
     public function orders()
     {

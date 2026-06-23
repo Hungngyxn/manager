@@ -27,6 +27,7 @@ class OrdersExport implements FromCollection, WithHeadings, WithMapping, WithSty
     {
         return [
             $item->extra_id . "\t",
+            $item->order_id. "\t",
             $item->sku,
             $item->skuInfo->name ?? null,
             $item->shop_name,
@@ -44,6 +45,7 @@ class OrdersExport implements FromCollection, WithHeadings, WithMapping, WithSty
     {
         return [
             'Extra ID',
+            'Order ID',
             'SKU',
             'Product Name',
             'Shop',

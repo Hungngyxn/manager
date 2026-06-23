@@ -9,7 +9,6 @@ use App\Models\Log;
 use App\Models\Tier;
 use Illuminate\Http\Request;
 use App\Services\SkuService;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -19,21 +18,27 @@ class SkuController extends Controller
     {
         $perPage = $request->get('perPage', 10);
         $query = Sku::query();
+
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('sku', 'like', "%$search%")
                     ->orWhere('name', 'like', "%$search%");
             });
         }
-        $skus = $query->paginate($perPage)->appends($request->only(['search']));
 
-        return view('pages.sku.index', compact('skus'));
+        if ($tier = $request->input('tier')) {
+            $query->where('tier', $tier);
+        }
+
+        $tiers = Tier::orderBy('tier')->get();
+        $skus = $query->paginate($perPage)->appends($request->only(['search', 'tier']));
+
+        return view('pages.sku.index', compact('skus', 'tiers'));
     }
 
     public function create()
     {
         $tiers = Tier::orderBy('tier')->get();
-
         return view('pages.sku.create', compact('tiers'));
     }
 
@@ -46,12 +51,12 @@ class SkuController extends Controller
             'quantity' => 'required|numeric|min:0',
             'tier' => 'required',
         ]);
-        
+
         DB::beginTransaction();
+
         try {
             $skuData = $request->only('sku', 'name', 'cost', 'quantity', 'tier');
             $skuData['sku'] = trim(strtolower($skuData['sku']));
-
 
             $sku = Sku::updateOrCreate(
                 ['sku' => $skuData['sku']],
@@ -61,9 +66,11 @@ class SkuController extends Controller
             app(SkuService::class)->updateOrdersBySku($sku);
 
             DB::commit();
-            return redirect()->route('sku.index')->with('success', 'SKU saved and related orders updated.');
+
+            return redirect()->route('sku.index')->with('success', 'SKU saved and related orders updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('sku.index')->with('error', 'Failed to save SKU: ' . $e->getMessage());
         }
     }
@@ -71,6 +78,7 @@ class SkuController extends Controller
     public function edit(Sku $sku)
     {
         $tiers = Tier::orderBy('tier')->get();
+
         return view('pages.sku.edit', compact('sku', 'tiers'));
     }
 
@@ -81,28 +89,32 @@ class SkuController extends Controller
             'cost' => 'required|numeric|min:0',
             'name' => 'required|max:255',
             'quantity' => 'required|numeric|min:0',
-            'tier' => 'required|numeric|min:0',
+            'tier' => 'required',
         ]);
 
         $updateScope = $request->input('update_scope', 'all');
 
         DB::beginTransaction();
+
         try {
             $sku->update($request->only('sku', 'name', 'cost', 'quantity', 'tier'));
 
             app(SkuService::class)->updateOrdersBySku($sku, $updateScope);
 
             DB::commit();
-            return redirect()->route('sku.index')->with('success', 'SKU và các đơn hàng liên quan đã được cập nhật.');
+
+            return redirect()->route('sku.index')->with('success', 'SKU and related orders updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('sku.index')->with('error', 'Cập nhật thất bại: ' . $e->getMessage());
+
+            return redirect()->route('sku.index')->with('error', 'Update failed: ' . $e->getMessage());
         }
     }
 
     public function destroy(Sku $sku)
     {
         $sku->delete();
+        
         return redirect()->route('sku.index')->with('success', 'SKU deleted successfully.');
     }
 
@@ -115,24 +127,24 @@ class SkuController extends Controller
         $import = new SkuImport();
 
         try {
-            Excel::import($import, filePath: $request->file('file'));
+            Excel::import($import, $request->file('file'));
 
             $messages = [];
 
             if (count($import->created)) {
-                $messages[] = '✅ Đã tạo mới: ' . implode(', ', $import->created);
+                $messages[] = '✅ Created: ' . implode(', ', $import->created);
             }
 
             if (count($import->updated)) {
-                $messages[] = '🔁 Đã cập nhật: ' . implode(', ', $import->updated);
+                $messages[] = '🔁 Updated: ' . implode(', ', $import->updated);
             }
 
             if (count($import->skipped)) {
                 $skippedLines = implode('<br>• ', $import->skipped);
-                $messages[] = '⚠️ Bỏ qua:<br>• ' . $skippedLines;
+                $messages[] = '⚠️ Skipped:<br>• ' . $skippedLines;
             }
 
-            return redirect()->route('sku.index')->with('import_status', implode('<br>', $messages));
+            return redirect()->route('sku.index')->with('status', implode('<br>', $messages));
         } catch (\Exception $e) {
             $errorInfo = [
                 'message' => $e->getMessage(),
@@ -140,8 +152,7 @@ class SkuController extends Controller
                 'file' => $e->getFile(),
             ];
 
-            return redirect()->route('sku.index')->with('import_error', $errorInfo);
+            return redirect()->route('sku.index')->with('error', 'Import failed: ' . json_encode($errorInfo));
         }
     }
-
 }

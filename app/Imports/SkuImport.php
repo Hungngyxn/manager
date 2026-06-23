@@ -15,7 +15,6 @@ class SkuImport implements ToCollection, WithHeadingRow
     public $updated = [];
     public $skipped = [];
     protected $skuService;
-    protected $skuMap = [];
 
     public function __construct()
     {
@@ -24,98 +23,82 @@ class SkuImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows)
     {
-        // Bước 1: Lưu map SKU gốc để hỗ trợ tính Pack
         foreach ($rows as $row) {
-            if ($row->filter()->isEmpty()) continue;
-
-            $sku = trim($row['sku'] ?? '');
-            $cost = isset($row['base_cost']) ? str_replace(',', '.', $row['base_cost']) : null;
-            $quantity = $row['so_luong_ton_kho'] ?? null;
-
-            if (!$sku) continue;
-
-            if (is_numeric($cost) && is_numeric($quantity) && $quantity !== '#N/A') {
-                $this->skuMap[$sku] = [
-                    'cost'     => floatval($cost),
-                    'quantity' => floatval($quantity),
-                ];
-            }
-        }
-
-        // Bước 2: Xử lý từng dòng dữ liệu
-        foreach ($rows as $row) {
-            if ($row->filter()->isEmpty()) continue;
+            if ($row->filter()->isEmpty())
+                continue;
 
             try {
-                $skuCode      = trim($row['sku'] ?? '');
-                $rawCost      = $row['base_cost'] ?? null;
-                $rawQuantity  = $row['so_luong_ton_kho'] ?? null;
-                $skuName      = $row['mat_hang'] ?? null;
-                $tierRaw     = trim($row['tier'] ?? '') ?: null;
-                $tierName = trim(preg_replace('/\s*\(.*/', '', $tierRaw));
+                $skuCode = trim($row['sku'] ?? '');
+                $product_name = $skuCode;
+                $rawCost = $row['base_cost'] ?? null;
+                $rawQuantity = $row['so_luong_ton_kho'] ?? null;
+                $skuName = $row['mat_hang'] ?? null;
+                $price = $row['gia_ban'] ?? null;
+                $freeshipping = $row['freeship'] ?? null;
+                $tierRaw = trim($row['tier'] ?? '') ?: null;
 
                 if (empty($skuCode)) {
-                    $this->skipped[] = '[SKU không hợp lệ]';
+                    $this->skipped[] = '[Invalid SKU]';
                     continue;
                 }
 
-                // Xử lý Pack SKU nếu có
-                if (preg_match('/(.+)_Pack(\d+)$/', $skuCode, $packMatches)) {
-                    $baseSku   = $packMatches[1];
-                    $multiplier = intval($packMatches[2]);
-
-                    if (isset($this->skuMap[$baseSku])) {
-                        $cost     = $this->skuMap[$baseSku]['cost'] * $multiplier;
-                        $quantity = $this->skuMap[$baseSku]['quantity'];
-                    } else {
-                        $this->skipped[] = $skuCode . ' - Không tìm thấy SKU gốc cho Pack';
-                        continue;
-                    }
+                // ✅ Set default quantity if it's #N/A or invalid
+                if ($rawQuantity === '#N/A' || !is_numeric($rawQuantity)) {
+                    $quantity = 1000;
                 } else {
-                    $costStr = str_replace(',', '.', $rawCost);
-
-                    if (!is_numeric($costStr)) {
-                        $this->skipped[] = $skuCode . ' - Base cost không hợp lệ';
-                        continue;
-                    }
-
-                    if (!is_numeric($rawQuantity) || $rawQuantity === '#N/A') {
-                        $this->skipped[] = $skuCode . ' - Quantity không hợp lệ';
-                        continue;
-                    }
-
-                    if (empty($skuName)) {
-                        $this->skipped[] = $skuCode . ' - Tên mặt hàng trống';
-                        continue;
-                    }
-                    
-                    $cost     = floatval($costStr);
                     $quantity = floatval($rawQuantity);
                 }
 
-                if ($tierName && !Tier::where('tier', $tierName)->exists()) {
-
-                    $this->skipped[] = $skuCode . " - Tier \"$tierName\" không tồn tại";
+                // ✅ Normalize cost
+                $costStr = str_replace(',', '.', $rawCost);
+                if (!is_numeric($costStr)) {
+                    $this->skipped[] = $skuCode . ' - Invalid base cost';
                     continue;
                 }
-                // Tìm SKU
+                $cost = floatval($costStr);
+
+                // ✅ Handle special tier case for "SP Research mới"
+                if (strtolower(trim($tierRaw)) === 'sp research mới' || strtolower(trim($tierRaw)) === 'tpcn') {
+                    $tierName = 'Tier 1';
+                } else {
+                    $tierName = trim(preg_replace('/\s*\(.*/', '', $tierRaw));
+                }
+
+                // Check if tier exists if not empty
+                if ($tierName && !Tier::where('tier', $tierName)->exists()) {
+                    $this->skipped[] = $skuCode . " - Tier \"$tierName\" does not exist";
+                    continue;
+                }
+
+                if (empty($skuName)) {
+                    $this->skipped[] = $skuCode . ' - Empty product name';
+                    continue;
+                }
+
+                // ✅ Find and update or create SKU
                 $sku = Sku::where('sku', $skuCode)->first();
 
                 if ($sku) {
                     $sku->update([
-                        'cost'      => $cost,
-                        'name'      => $skuName,
-                        'quantity'  => $quantity,
+                        'cost' => $cost,
+                        'name' => $skuName,
+                        'quantity' => $quantity,
+                        'product_name' => $product_name,
+                        'price' => $price,
+                        'freeshipping' => !empty($freeshipping) ? 1 : 0,
                         'tier' => $tierName,
                     ]);
                     $this->skuService->updateOrdersBySku($sku);
                     $this->updated[] = $skuCode;
                 } else {
                     $newSku = Sku::create([
-                        'sku'       => strtolower($skuCode),
-                        'cost'      => $cost,
-                        'name'      => $skuName,
-                        'quantity'  => $quantity,
+                        'sku' => strtolower($skuCode),
+                        'cost' => $cost,
+                        'name' => $skuName,
+                        'product_name' => $product_name,
+                        'quantity' => $quantity,
+                        'price' => $price,
+                        'freeshipping' => !empty($freeshipping) ? 1 : 0,
                         'tier' => $tierName,
                     ]);
                     $this->skuService->updateOrdersBySku($newSku);
@@ -123,7 +106,7 @@ class SkuImport implements ToCollection, WithHeadingRow
                 }
 
             } catch (\Throwable $e) {
-                $this->skipped[] = $skuCode . ' - Lỗi không xác định';
+                $this->skipped[] = $skuCode . ' - Unknown error';
                 continue;
             }
         }

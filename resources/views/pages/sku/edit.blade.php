@@ -44,14 +44,13 @@
                 @enderror
             </div>
 
-            {{-- 🔁 Thay Bonus Percentage bằng Tier Name --}}
+            {{-- Tier --}}
             <div class="mb-3">
                 <label class="form-label fw-bold">Tier</label>
                 <select name="tier" class="form-select select2 @error('tier') is-invalid @enderror" required>
                     <option value="">-- Select Tier --</option>
                     @foreach ($tiers as $tier)
-                        <option value="{{ $tier->tier }}"
-                            {{ old('tier', $sku->tier) == $tier->tier ? 'selected' : '' }}>
+                        <option value="{{ $tier->tier }}" {{ old('tier', $sku->tier) == $tier->tier ? 'selected' : '' }}>
                             {{ $tier->tier }} ({{ $tier->bonus }}%)
                         </option>
                     @endforeach
@@ -61,14 +60,14 @@
                 @enderror
             </div>
 
-            {{-- Cập nhật đơn hàng --}}
+            {{-- Update Orders --}}
             <div class="mb-3">
-                <label class="form-label fw-bold">Cập nhật đơn hàng liên quan</label>
+                <label class="form-label fw-bold">Update related orders</label>
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="update_scope" id="update_all" value="all"
                         {{ old('update_scope') === 'after_update' ? '' : 'checked' }}>
                     <label class="form-check-label" for="update_all">
-                        Tất cả đơn hàng có mã SKU này
+                        All orders containing this SKU
                     </label>
                 </div>
 
@@ -76,7 +75,7 @@
                     <input class="form-check-input" type="radio" name="update_scope" id="update_after"
                         value="after_update" {{ old('update_scope') === 'after_update' ? 'checked' : '' }}>
                     <label class="form-check-label" for="update_after">
-                        Chỉ đơn hàng được tạo sau khi cập nhật SKU
+                        Only orders created after this update
                     </label>
                 </div>
             </div>

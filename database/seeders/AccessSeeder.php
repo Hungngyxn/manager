@@ -3,27 +3,29 @@
 namespace Database\Seeders;
 
 use App\Models\Access;
-use App\Models\Admin;
 use App\Models\Menu;
-use App\Models\Role;
 use Illuminate\Database\Seeder;
 
 class AccessSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     *
-     * @return void
-     */
     public function run()
     {
-        $menus = Menu::all();
-        $adminId = Role::whereName('Administrator')->first()->id;
+        $menuNames = ['dashboard', 'order', 'shop', 'user', 'role', 'team', 'sku', 'report', 'account'];
 
-        foreach($menus as $menu) {
-            Access::factory()->create(['role_id' => $adminId, 'menu_id' => $menu->id]);
+        foreach ($menuNames as $name) {
+            Menu::firstOrCreate(['name' => $name]);
         }
 
-        Admin::create(['role_id' => $adminId]);
+        $menus = Menu::all();
+
+        // Tạo quyền cho Admin
+        foreach ($menus as $menu) {
+            Access::factory()->forAdmin($menu->id)->create();
+        }
+
+        // Tạo quyền cho Seller
+        foreach ($menus as $menu) {
+            Access::factory()->forSeller($menu->name)->create();
+        }
     }
 }

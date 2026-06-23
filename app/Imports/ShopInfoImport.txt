@@ -1,0 +1,51 @@
+<?php
+
+namespace App\Imports;
+
+use App\Models\Order;
+use App\Models\SellerHasShop;
+use App\Models\ShopAccount;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use App\Http\Controllers\ReportController;
+
+class ShopImport implements ToCollection, WithHeadingRow
+{
+    public $created = [];
+    public $skipped = [];
+
+    public function collection(Collection $rows)
+    {
+        foreach ($rows as $row) {
+            $shopCode = trim($row['shop_code'] ?? '');
+            $sellerName = trim($row['seller_name'] ?? '');
+            $teamId = trim($row['team_id'] ?? '');
+
+            if (empty($shopCode) || empty($sellerName)) {
+                $this->skipped[] = "Bỏ qua dòng: thiếu shop_code hoặc seller_name";
+                continue;
+            }
+
+            $user = User::where('name', $sellerName)->first();
+
+            $existingShop = SellerHasShop::whereRaw('LOWER(shop_code) = ?', [strtolower($shopCode)])->first();
+
+            if ($existingShop) {
+
+                SellerHasShop::updateOrCreate(
+                    [
+                        'shop_code' => $shopCode
+                    ],
+                    [
+                        'user_id' => $user?->id,
+                        'team_id' => $teamId ? $teamId : null
+                    ]
+                );
+            } else {
+                $this->created[] = "$shopCode (new, seller: " . ($sellerName ?: 'Unassigned') . ")";
+            }
+        }
+    }
+}

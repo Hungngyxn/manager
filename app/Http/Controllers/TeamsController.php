@@ -24,9 +24,11 @@ class TeamsController extends Controller
         $request->validate([
             'name' => 'required|min:3|max:255',
         ]);
-        $team = Team::create([
+
+        Team::create([
             'name' => 'Team ' . $request->name,
         ]);
+        
         return redirect()->route('team.index')->with('success', 'Team created successfully');
     }
 

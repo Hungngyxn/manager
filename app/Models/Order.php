@@ -11,6 +11,7 @@ class Order extends Model
 
     protected $fillable = [
         'extra_id',
+        'order_id',
         'sku',
         'shop_name',
         'quantity',
@@ -19,13 +20,9 @@ class Order extends Model
         'profit',
         'bonus',
         'fulfill_fee',
-        'user_id'
+        'user_id',
+        'product_name'
     ];
-
-    public function shop()
-    {
-        return $this->belongsTo(SellerHasShop::class, 'shop_cipher', 'shop_cipher');
-    }
 
     public function seller()
     {

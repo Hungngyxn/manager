@@ -24,12 +24,14 @@ class RolesController extends Controller
     public function index()
     {
         $roles = $this->roles->paginate(10);
+
         return view('pages.role.index', compact('roles'));
     }
 
     public function create()
     {
         $menus = Menu::all();
+
         return view('pages.role.create', compact('menus'));
     }
 
@@ -58,13 +60,14 @@ class RolesController extends Controller
     public function show(Role $role)
     {
         $accessesForEditing = Access::where('role_id', $role->id)->with('menu', 'role')->orderBy('menu_id', 'ASC')->get();
+
         return view('pages.role.show', compact('accessesForEditing', 'role'));
     }
 
     public function edit(Role $role)
     {
         $accessesForEditing = Access::where('role_id', $role->id)->with('menu', 'role')->orderBy('menu_id', 'ASC')->get();
-
+        
         return view('pages.role.edit', compact('accessesForEditing', 'role'));
     }
 

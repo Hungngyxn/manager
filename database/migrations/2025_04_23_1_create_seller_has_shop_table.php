@@ -10,19 +10,25 @@ class CreateSellerHasShopTable extends Migration
     {
         Schema::create('seller_has_shop', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable(); // Cho phép null
+            $table->string('email')->nullable();
 
             // Thông tin shop
-            $table->string('shop_code')->unique();
-            $table->string('shop_cipher')->unique();
-            $table->string('shop_name');
+            $table->string('shop_code')->nullable();
+            $table->string('shop_cipher')->nullable();
+            $table->string('shop_name')->nullable();
             $table->string('bank')->nullable();
             $table->decimal('onhold', 10, 2)->default(0);
             $table->decimal('payout', 10, 2)->default(0);
+            $table->unsignedBigInteger('team_id')->nullable();
 
             // Thời gian gán seller
             $table->timestamp('assigned_at')->nullable();
             $table->timestamp('unassigned_at')->nullable();
+
+            // Các cột bổ sung
+            $table->decimal('pending', 10, 2)->nullable();
+            $table->integer('limit_order')->nullable();
 
             $table->timestamps();
 

@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" crossorigin="anonymous">
 
     <!-- Local CSS -->
-    <link href="/css/app.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
     <link rel="stylesheet" href="/select2/css/select2.css">
     <link rel="stylesheet" href="/select2/css/select2-bootstrap-5-theme.css">
 

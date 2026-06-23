@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
-    // Cập nhật tổng chi phí dựa trên SKU và số lượng
+    // Update total cost based on SKU and quantity
     function updateCost() {
         const selectedSku = $("#sku").find(":selected");
         const unitCost = parseFloat(selectedSku.data("cost")) || 0;
@@ -10,30 +10,38 @@ document.addEventListener("DOMContentLoaded", function () {
         $("#cost").val(totalCost);
     }
 
-    // Khởi tạo Select2 và gắn sự kiện thay đổi SKU, số lượng
+    // Initialize Select2 and bind change event for SKU and quantity
     $(".select2").select2({
         width: "100%",
         theme: "bootstrap-5",
     });
 
-    $("#sku, #quantity").on("change keyup", updateCost);
-    updateCost(); // Gọi lần đầu khi trang tải xong
+    $(".select2-edit").select2({
+        dropdownAutoWidth: true,
+        width: "100%",
+        theme: "bootstrap-5",
+        closeOnSelect: true,
+        dropdownParent: $("#editModal"),
+    });
 
-    // Gắn sự kiện khi thay đổi shop
+    $("#sku, #quantity").on("change keyup", updateCost);
+    updateCost(); // Initial calculation on page load
+
+    // Bind event when shop is changed
     $("#shop_name").on("change", function () {
         const selected = $(this).find(":selected");
-        
+
         $("#shop_code").val(selected.data("code"));
         $("#seller").val(selected.data("user"));
     });
 
-    // Khi chọn SKU thì cập nhật ô cost
+    // When SKU is selected, update cost input
     $("#sku").on("change", function () {
         const selected = $(this).find(":selected");
         $("#cost").val(selected.data("cost") || "0.00");
     });
 
-    // Chọn tất cả checkbox
+    // Select all checkboxes
     const selectAllCheckbox = document.getElementById("selectAllTable");
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener("change", function () {
@@ -44,7 +52,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Đồng bộ trạng thái "Chọn tất cả" nếu checkbox con thay đổi
+    // Sync "Select All" checkbox when individual checkboxes change
     document.querySelectorAll(".table-checkbox").forEach((cb) => {
         cb.addEventListener("change", function () {
             const checkboxes = document.querySelectorAll(".table-checkbox");
@@ -57,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    // Flatpickr cho các ô chọn ngày
+    // Flatpickr for date picker inputs
     flatpickr(".datepicker", {
         dateFormat: "Y-m-d",
         altInput: true,
@@ -65,7 +73,7 @@ document.addEventListener("DOMContentLoaded", function () {
         clickOpens: true,
     });
 
-    // Gắn xử lý form xóa
+    // Handle delete form
     const deleteForm = document.getElementById("deleteForm");
     if (deleteForm) {
         deleteForm.addEventListener("submit", function (e) {
@@ -75,25 +83,22 @@ document.addEventListener("DOMContentLoaded", function () {
             ).map((cb) => cb.value);
 
             if (!selected.length) {
-                alert("Vui lòng chọn ít nhất một đơn hàng để xoá.");
+                alert("Please select at least one order to delete.");
                 return;
             }
 
-            // Hiển thị hộp thoại xác nhận
             if (
-                !confirm(
-                    "Bạn có chắc chắn muốn xoá những đơn hàng đã chọn không?"
-                )
+                !confirm("Are you sure you want to delete the selected orders?")
             ) {
                 return;
             }
 
-            // Xóa input cũ nếu có
+            // Remove old hidden inputs if any
             this.querySelectorAll('input[name="order_ids[]"]').forEach((el) =>
                 el.remove()
             );
 
-            // Tạo input mới cho các order đã chọn
+            // Create new hidden inputs for selected orders
             selected.forEach((id) => {
                 const input = document.createElement("input");
                 input.type = "hidden";
@@ -102,13 +107,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 this.appendChild(input);
             });
 
-            // Gửi form
             this.submit();
         });
     }
 });
 
-// Reset bộ lọc tìm kiếm
+// Reset search filters
 function resetFilters() {
     const form = document.getElementById("filterForm");
     if (!form) return;
@@ -130,21 +134,21 @@ function resetFilters() {
     if (searchBtn) searchBtn.click();
 }
 
-// Xử lý export toàn bộ
+// Handle export all
 function submitExport(mode) {
     document.getElementById("exportMode").value = mode;
     new bootstrap.Modal(document.getElementById("exportConfirmModal")).show();
 }
 
-// Xử lý export theo checkbox đã chọn
+// Handle export for selected checkboxes
 function submitExportSelected() {
     const selected = document.querySelectorAll(".table-checkbox:checked");
     if (!selected.length) {
         Swal.fire({
             icon: "warning",
-            title: "Không có mục nào được chọn",
-            text: "Vui lòng chọn ít nhất một đơn hàng để export.",
-            confirmButtonText: "Đã hiểu",
+            title: "No items selected",
+            text: "Please select at least one order to export.",
+            confirmButtonText: "Got it",
         });
         return;
     }
@@ -166,7 +170,7 @@ function submitExportSelected() {
     new bootstrap.Modal(document.getElementById("exportConfirmModal")).show();
 }
 
-// Xử lý import file
+// Handle file import
 function handleImport(input) {
     if (input.files.length > 0) {
         document.getElementById("importSpinner").style.display = "block";
@@ -174,12 +178,12 @@ function handleImport(input) {
     }
 }
 
-// Mở modal sửa đơn hàng
-function openEditModal(id, extra_id, sku, quantity, total, fulfill_fee) {
+// Open edit order modal
+function openEditModal(id, order_id, sku, quantity, total, fulfill_fee) {
     $("#editOrderForm").attr("action", "/orders/" + id);
-    document.getElementById("edit_extra_id").value = extra_id;
-    document.getElementById("edit_sku").value = sku;
-    document.getElementById("edit_quantity").value = quantity;
-    document.getElementById("edit_total").value = total;
-    document.getElementById("edit_fulfill_fee").value = fulfill_fee;
+    $("#edit_order_id").val(order_id);
+    $("#edit_sku").val(sku).trigger("change");
+    $("#edit_quantity").val(quantity);
+    $("#edit_total").val(total);
+    $("#edit_fulfill_fee").val(fulfill_fee);
 }

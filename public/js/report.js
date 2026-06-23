@@ -1,12 +1,14 @@
 document.addEventListener("DOMContentLoaded", function () {
+    // Initialize Select2
     $(".select2").select2({
         width: "100%",
         theme: "bootstrap-5",
     });
-    
+
     const dateStart = document.getElementById("date_start").value;
     const dateEnd = document.getElementById("date_end").value;
 
+    // Initialize Flatpickr for date range picker
     flatpickr("#date_range", {
         mode: "range",
         dateFormat: "Y-m-d",
@@ -17,6 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 
+// Fetch Ads fee from server based on user and date
 function fetchAdsFee(userId, date) {
     fetch(`/ads-fee/fetch?user_id=${userId}&date=${date}`)
         .then((response) => response.json())
@@ -24,15 +27,15 @@ function fetchAdsFee(userId, date) {
             document.getElementById("edit_ads").value = data.ads ?? 0;
         })
         .catch((error) => {
-            alert("Không thể tải dữ liệu chi phí Ads từ server.");
+            alert("Failed to fetch Ads fee from server.");
             console.error(error);
         });
 }
 
-function openEditReportModal(reportId, _adsIgnore, userId) {
+// Open edit Ads fee modal
+function openEditReportModal(_adsIgnore, userId) {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-    document.getElementById("edit_report_id").value = reportId;
     document.getElementById("edit_date").value = today;
 
     const userSelect = document.getElementById("edit_user_id");
@@ -54,6 +57,7 @@ function openEditReportModal(reportId, _adsIgnore, userId) {
     new bootstrap.Modal(document.getElementById("editAdsModal")).show();
 }
 
+// Reset all filters
 function resetFilters() {
     const form = document.getElementById("filterForm");
     if (!form) return;

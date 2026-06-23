@@ -17,7 +17,7 @@
                     {{-- Toolbar --}}
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            @if (Auth::user()->role->name !== 'Seller')
+                            @canEdit
                                 {{-- Add --}}
                                 <div class="btn-group">
                                     <button class="btn btn-outline-dark dropdown-toggle px-4 py-2" type="button"
@@ -27,7 +27,7 @@
                                     <ul class="dropdown-menu">
                                         <li>
                                             <a class="dropdown-item" href="{{ route('sku.create') }}">
-                                                <i class="fas fa-keyboard me-1"></i> Add Manual
+                                                <i class="fas fa-keyboard me-1"></i> Add Manually
                                             </a>
                                         </li>
                                         <li>
@@ -37,18 +37,27 @@
                                                 <label class="dropdown-item d-block" style="cursor: pointer">
                                                     <i class="fas fa-file-excel me-1"></i> Import Excel
                                                     <input type="file" name="file" accept=".xlsx,.xls"
-                                                        onchange="this.form.submit()" style="display: none;">
+                                                        onchange="this.form.submit()" hidden>
                                                 </label>
                                             </form>
                                         </li>
                                     </ul>
                                 </div>
-                            @endif
+                            @endcanEdit
                         </div>
 
                         {{-- Search --}}
                         <form method="GET" action="{{ route('sku.index') }}" id="filterForm"
                             class="d-flex align-items-center gap-2">
+                            <select name="tier" class="form-select" style="min-width: 140px">
+                                <option value="">-- All Tiers --</option>
+                                @foreach ($tiers as $tier)
+                                    <option value="{{ $tier->tier }}"
+                                        {{ request('tier') == $tier->tier ? 'selected' : '' }}>
+                                        {{ $tier->tier }}
+                                    </option>
+                                @endforeach
+                            </select>
                             <input type="text" name="search" class="form-control px-3 py-2" placeholder="Search SKU..."
                                 value="{{ request('search') }}" style="min-width: 250px;">
                             <button type="submit" class="btn btn-outline-secondary px-4" id="btnsearch">
@@ -76,13 +85,14 @@
                             <thead class="table-light text-uppercase">
                                 <tr>
                                     <th>SKU</th>
-                                    <th>Mặt Hàng</th>
+                                    <th>Product Name</th>
                                     <th>Base Cost</th>
+                                    <th>Price</th>
                                     <th>Quantity</th>
                                     <th>Tier</th>
-                                    @if (Auth::user()->role->name !== 'Seller')
+                                    @canEdit
                                         <th>Actions</th>
-                                    @endif
+                                    @endcanEdit
                                 </tr>
                             </thead>
                             <tbody>
@@ -91,9 +101,10 @@
                                         <td>{{ $sku->sku }}</td>
                                         <td>{{ $sku->name }}</td>
                                         <td>{{ number_format($sku->cost, 1) }}</td>
+                                        <td>{{ number_format($sku->price, 1) }}</td>
                                         <td>{{ number_format($sku->quantity) }}</td>
-                                        <td>{{ $sku->tier }} </td>
-                                        @if (collect($accesses)->where('menu_id', 6)->first()->status == 2)
+                                        <td>{{ $sku->tier }}</td>
+                                        @if (collect($accesses)->where('menu_id', 7)->first()->status == 2)
                                             <td>
                                                 <a href="{{ route('sku.edit', $sku->id) }}"
                                                     class="btn btn-sm btn-outline-primary">
@@ -113,7 +124,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center">No SKUs found.</td>
+                                        <td colspan="7" class="text-center">No SKUs found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -149,36 +160,35 @@
             document.addEventListener('DOMContentLoaded', function() {
                 @if (session('import_error'))
                     const error = @json(session('import_error'));
-
-                    const modalTitle = 'Lỗi khi import SKU';
+                    const modalTitle = 'Error importing SKU';
                     const modalBody = `
-                    <p><strong>Lỗi:</strong> ${error.message}</p>
-                    <p><strong>File:</strong> ${error.file}</p>
-                    <p><strong>Dòng:</strong> ${error.line}</p>
-                `;
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p><strong>File:</strong> ${error.file}</p>
+                        <p><strong>Line:</strong> ${error.line}</p>
+                    `;
                 @elseif (session('import_status'))
-                    const modalTitle = 'Thông báo Import SKU';
+                    const modalTitle = 'Import SKU Status';
                     let rawHtml = `{!! session('import_status') !!}`;
-                    let modalBody = rawHtml.replace(/⚠️ Bỏ qua:/g,
-                        '<span style="color:#ff0404; font-weight:600;">⚠️ Bỏ qua:</span>');
+                    let modalBody = rawHtml.replace(/⚠️ Skipped:/g,
+                        '<span style="color:#ff0404; font-weight:600;">⚠️ Skipped:</span>');
                 @endif
 
                 const modalHtml = `
-                <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-lg"> <!-- modal rộng hơn -->
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="importModalLabel">${modalTitle}</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
-                            </div>
-                            <div class="modal-body">${modalBody}</div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="importModalLabel">${modalTitle}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">${modalBody}</div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
 
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
 
@@ -187,7 +197,6 @@
             });
         </script>
     @endif
-
 
     <script>
         function resetFilters() {

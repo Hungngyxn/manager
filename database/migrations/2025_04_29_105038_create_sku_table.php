@@ -14,6 +14,8 @@ class CreateSkuTable extends Migration
             $table->string('name')->nullable();
             $table->integer('quantity');
             $table->string('tier')->default(0);
+            $table->decimal('price', 15, 2)->default(0);
+            $table->boolean('freeshipping')->default(0);
             $table->timestamps();
         });
     }

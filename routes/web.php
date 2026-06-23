@@ -1,11 +1,18 @@
 <?php
 
 use App\Http\Controllers\AdsFeeController;
+use App\Http\Controllers\BonusController;
+use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ProductListController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SellerHasShopController;
+use App\Http\Controllers\ShopAccountController;
+use App\Http\Controllers\ShopUsController;
 use App\Http\Controllers\SkuController;
+use App\Http\Controllers\SkuOrderController;
 use App\Http\Controllers\TeamsController;
+use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfilesController;
@@ -39,6 +46,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('tiktok')->name('tiktok.')->group(function () {
         Route::get('/connect', [SellerHasShopController::class, 'connectTikTok'])->name('connect');
         Route::get('/shop/{id}/reconnect', [SellerHasShopController::class, 'reconnectTikTok'])->name('reconnect');
+        Route::get('/shop/{id}/finance', [SellerHasShopController::class, 'financeShop'])->name('finance');
         Route::get('/callback', [SellerHasShopController::class, 'tiktokCallback'])->name('callback');
     });
 
@@ -85,7 +93,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/import-fulfill-fee', [OrderController::class, 'importFulfillFee'])->name('import.fulfill_fee');
         Route::post('/export', [OrderController::class, 'export'])->name('export');
         Route::delete('/delete', [OrderController::class, 'delete'])->name('delete');
-
+        Route::get('/sample-file', [OrderController::class, 'downloadSample'])->name('download-sample');
         Route::get('/sync', [OrderController::class, 'sync'])->name('sync');
 
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
@@ -100,11 +108,12 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
         Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
-        Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
-        Route::get('/shop/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
+        Route::get('/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
+        Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
+        Route::get('/exportBalance', [SellerHasShopController::class, 'exportBalance'])->name('exportBalance');
     });
 
     // Sku
@@ -116,6 +125,18 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/{sku}/edit', [SkuController::class, 'edit'])->name('edit');
         Route::put('/{sku}', [SkuController::class, 'update'])->name('update');
         Route::delete('/{sku}', [SkuController::class, 'destroy'])->name('destroy');
+    });
+
+    //sku-order
+
+    Route::prefix('sku-order')->name('sku-orders.')->group(function () {
+        Route::get('/', [SkuOrderController::class, 'index'])->name('index');
+        Route::get('/create', [SkuOrderController::class, 'create'])->name('create');
+        Route::post('/import', [SkuOrderController::class, 'import'])->name('import');
+        Route::post('/', [SkuOrderController::class, 'store'])->name('store');
+        Route::get('/{sku}/edit', [SkuOrderController::class, 'edit'])->name('edit');
+        Route::put('/{sku}', [SkuOrderController::class, 'update'])->name('update');
+        Route::delete('/{sku}', [SkuOrderController::class, 'destroy'])->name('destroy');
     });
 
     //Team
@@ -131,6 +152,48 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
     });
 
+    Route::prefix('shop-accounts')->name('shop-accounts.')->group(function () {
+        Route::get('/', [ShopAccountController::class, 'index'])->name('index');
+        Route::get('/create', [ShopAccountController::class, 'create'])->name('create');
+        Route::post('/', [ShopAccountController::class, 'store'])->name('store');
+        Route::post('/import', [ShopAccountController::class, 'importShop'])->name('import');
+        Route::delete('/{account}', [ShopAccountController::class, 'destroy'])->name('destroy');
+        Route::put('/{account}', [ShopAccountController::class, 'update'])->name('update');
+        Route::get('/{account}/edit', [ShopAccountController::class, 'edit'])->name('edit');
+        Route::post('/batch-assign', [ShopAccountController::class, 'batchAssign'])->name('batch-assign');
+    });
+
+    Route::prefix('shopus')->name('shopus.')->group(function () {
+        Route::get('/', [ShopUsController::class, 'index'])->name('index');
+        Route::post('/update', [ShopUsController::class, 'update'])->name('update');
+        Route::get('/create-label', [ShopUsController::class, 'syncOrdersWithLabel'])->name('createLabel');
+        Route::get('/get-label', [ShopUsController::class, 'syncPendingOrdersStatus'])->name('getLabel');
+        Route::post('/export-selected', [ShopUsController::class, 'exportSelected'])
+            ->name('export.selected');
+    });
+
+    Route::prefix('log')->name('log.')->group(function () {
+        Route::get('/', [ErrorLogController::class, 'index'])->name('index');
+        Route::get('/create', [ErrorLogController::class, 'create'])->name('create');
+        Route::post('/', [ErrorLogController::class, 'store'])->name('store');
+    });
+
+    Route::prefix('bonus')->name('bonus.')->group(function () {
+        Route::get('/', [BonusController::class, 'index'])->name('index');
+    });
+
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');
     Route::get('/ads-fee/fetch', [AdsFeeController::class, 'fetch'])->name('ads-fee.fetch');
+    Route::post('/ads-fee/import', [AdsFeeController::class, 'import'])->name('ads-fee.import');
+
+    Route::post('/product-mapping/import', [ProductListController::class, 'import'])->name('product-mapping.import');
+
+    Route::prefix('track')->name('track.')->group(function () {
+        Route::get('/', [TrackingController::class, 'index'])->name('index');
+        Route::get('/create', [TrackingController::class, 'create'])->name('create');
+        Route::post('/', [TrackingController::class, 'store'])->name('store');
+        Route::delete('/{id}', [TrackingController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/sync', [TrackingController::class, 'syncOrder'])->name('sync');
+        Route::post('/syncAll', [TrackingController::class, 'syncAllOrders'])->name('syncAll');
+    });
 });

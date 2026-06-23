@@ -20,7 +20,7 @@ class UsersController extends Controller
 
     public function index(Request $request)
     {
-        $query = User::with('role');
+        $query = User::with(['role', 'team']);
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -30,15 +30,22 @@ class UsersController extends Controller
             });
         }
 
-        $users = $query->paginate(10)->appends($request->only('search'));
+        if ($request->filled('team')) {
+            $query->where('team_id', $request->team);
+        }
+
+        $users = $query->paginate(10)->appends($request->only('search', 'team'));
         $teams = Team::all();
+
         return view('pages.user.index', compact('users', 'teams'));
     }
+
 
     public function create()
     {
         $roles = Role::all();
         $teams = Team::all();
+
         return view('pages.user.create', compact('roles', 'teams'));
     }
 
@@ -53,6 +60,7 @@ class UsersController extends Controller
         ]);
 
         DB::beginTransaction();
+
         try {
             $user = User::create([
                 'name' => $request->name,
@@ -64,9 +72,11 @@ class UsersController extends Controller
             ]);
 
             DB::commit();
+
             return redirect()->route('user.index')->with('status', 'User created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('user.index')->with('error', 'Failed to create user: ' . $e->getMessage());
         }
     }
@@ -74,6 +84,7 @@ class UsersController extends Controller
     public function show($id)
     {
         $user = User::with('role')->findOrFail($id);
+
         return view('pages.user.show', compact('user'));
     }
 
@@ -81,6 +92,7 @@ class UsersController extends Controller
     {
         $user = User::findOrFail($id);
         $roles = Role::all();
+
         return view('pages.user.edit', compact('user', 'roles'));
     }
 
@@ -94,6 +106,7 @@ class UsersController extends Controller
         ]);
 
         DB::beginTransaction();
+
         try {
             $user = User::findOrFail($id);
             $attributes = $request->only('name', 'email', 'role_id');
@@ -105,9 +118,11 @@ class UsersController extends Controller
             $user->update($attributes);
 
             DB::commit();
+
             return redirect()->route('user.index')->with('status', 'User updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+
             return redirect()->route('user.index')->with('error', 'Failed to update user: ' . $e->getMessage());
         }
     }

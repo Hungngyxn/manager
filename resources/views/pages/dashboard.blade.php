@@ -1,7 +1,7 @@
 @extends('layouts.admin', ['accesses' => $accesses, 'active' => 'dashboard'])
 
 @section('_content')
-    <div class="container-fluid mt-2 px-4">
+    <div class="container-fluid mt-2">
         {{-- Title --}}
         <div class="row">
             <div class="col-12">
@@ -68,14 +68,14 @@
 
                     {{-- Summary Cards --}}
                     <div class="row mb-4 justify-content-center">
-                        @if (Auth::user()->role->name !== 'Seller')
-                            <div class="col-md-3 col-sm-6 mb-3">
-                                <div class="card shadow-sm border-start-primary p-3">
-                                    <h6 class="text-primary fw-bold">Total Sellers</h6>
-                                    <h3 class="fw-bold">{{ $totalSellers }}</h3>
-                                </div>
+                        @canEdit
+                        <div class="col-md-3 col-sm-6 mb-3">
+                            <div class="card shadow-sm border-start-primary p-3">
+                                <h6 class="text-primary fw-bold">Total Sellers</h6>
+                                <h3 class="fw-bold">{{ $totalSellers }}</h3>
                             </div>
-                        @endif
+                        </div>
+                        @endcanEdit
                         <div class="col-md-3 col-sm-6 mb-3">
                             <div class="card shadow-sm border-start-success p-3">
                                 <h6 class="text-success fw-bold">Total Orders</h6>
@@ -99,76 +99,84 @@
             </div>
         </div>
 
-        {{-- Top Sellers --}}
-        @if (!$isUserRole)
-            <form id="top-seller-filter" class="row g-3 mb-3 px-3 pt-3">
-                <div class="col-md-6">
-                    <label for="top_seller_range" class="form-label">Select Date Range</label>
-                    <input type="text" id="top_seller_range" class="form-control" placeholder="Select Date Range">
-                </div>
-                <div class="col-md-6 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                </div>
-            </form>
-
-            <table id="top-seller-table" class="table table-bordered m-0 text-center">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Seller Name</th>
-                        <th>Total Cost</th>
-                        <th>Total Revenue</th>
-                        <th>Profit</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($topSellers as $index => $seller)
-                        <tr>
-                            <td>{{ $index + 1 }}</td>
-                            <td>{{ $seller->seller_name }}</td>
-                            <td>{{ number_format($seller->total_cost, 2) }}</td>
-                            <td>{{ number_format($seller->total_revenue, 2) }}</td>
-                            <td>{{ number_format($seller->profit, 2) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
-
-
-        {{-- Top Shops --}}
-        <div class="row mt-5">
+        <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow-sm p-4">
-                    <h5 class="fw-bold mb-3">Top 5 Shops by Number of Orders</h5>
+                    <h5 class="fw-bold mb-4">🏆 Top Seller Of The Month</h5>
+
+                    <div class="row justify-content-center text-center align-items-end mb-5" style="gap: 10px">
+                        @php
+                            $first = $topSellers[0] ?? null;
+                            $second = $topSellers[1] ?? null;
+                            $third = $topSellers[2] ?? null;
+                        @endphp
+
+                        <div class="row justify-content-center text-center align-items-end mb-5" style="gap: 10px;">
+                            @if ($second)
+                                <div class="col-md-3 col-4 order-0" style="margin-top: 40px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 110px; height: 110px;">
+                                        <div class="text-primary fs-3">🥈</div>
+                                        <div class="fw-bold fs-5">{{ $second['name'] }}</div>
+                                        <div class="text-primary fs-4 fw-semibold">{{ $second['score'] }}</div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if ($first)
+                                <div class="col-md-3 col-4 order-1" style="margin-top: 0px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 130px; height: 130px;">
+                                        <div class="text-warning fs-2">👑</div>
+                                        <div class="fw-bold fs-4">{{ $first['name'] }}</div>
+                                        <div class="text-d fs-3 fw-bold">{{ $first['score'] }}</div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if ($third)
+                                <div class="col-md-3 col-4 order-2" style="margin-top: 60px;">
+                                    <div class="position-relative top-seller">
+                                        <img src="{{ asset('images/profile.png') }}" alt="avatar"
+                                            class="rounded-circle mb-3" style="width: 100px; height: 100px;">
+                                        <div class="text-success fs-4">🥉</div>
+                                        <div class="fw-bold fs-5">{{ $third['name'] }}</div>
+                                        <div class="text-success fs-4 fw-semibold">{{ $third['score'] }}</div>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
-                        <table class="table table-hover table-bordered text-center align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Shop Name</th>
-                                    <th>Total Orders</th>
-                                </tr>
-                            </thead>
+                        <table class="table table-hover text-center align-middle">
                             <tbody>
-                                @foreach ($topShops as $index => $shop)
+                                @foreach ($topSellers->slice(3)->values() as $index => $seller)
                                     <tr>
-                                        <td>{{ $index + 1 }}</td>
-                                        <td>{{ $shop->shop_name }}</td>
-                                        <td>{{ $shop->total_orders }}</td>
+                                        <td style="width: 50px;" class="text-muted fw-bold">
+                                            {{ $index + 4 }}
+                                        </td>
+                                        <td class="text-start d-flex align-items-center gap-3">
+                                            <img src="{{ asset('images/profile.png') }}" alt="Avatar"
+                                                class="rounded-circle" style="width: 36px; height: 36px;">
+                                            <div>
+                                                <div class="fw-bold">{{ $seller['name'] }}</div>
+                                            </div>
+                                        </td>
+                                        <td class="fw-bold">{{ $seller['score'] }}</td>
                                     </tr>
                                 @endforeach
-                                @if ($topShops->isEmpty())
-                                    <tr>
-                                        <td colspan="3" class="text-center">No data available</td>
-                                    </tr>
-                                @endif
                             </tbody>
                         </table>
                     </div>
+
                 </div>
             </div>
-        </div>
+        {{-- </div>
+        <div style="height: 500px"></div>
+        <button class="sitrit" > Sít rịt nè</button> --}}
 
     </div>
 
@@ -224,50 +232,4 @@
 
         });
     </script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            flatpickr("#top_seller_range", {
-                mode: "range",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "d-m-Y",
-                allowInput: true,
-                defaultDate: ["{{ $from }}", "{{ $to }}"],
-            });
-
-            document.getElementById('top-seller-filter').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const range = document.getElementById('top_seller_range').value;
-                let [from, to] = range.split(' to ');
-                if (!to) to = from; // fallback nếu người dùng chỉ chọn 1 ngày
-
-                fetch(`/dashboard/top-sellers?from=${from}&to=${to}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        const tbody = document.querySelector('#top-seller-table tbody');
-                        tbody.innerHTML = '';
-
-                        if (data.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="5">No data available</td></tr>';
-                        } else {
-                            data.forEach((seller, index) => {
-                                const row = `<tr>
-                                    <td>${index + 1}</td>
-                                    <td>${seller.seller_name}</td>
-                                    <td>${parseFloat(seller.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    <td>${parseFloat(seller.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    <td>${parseFloat(seller.profit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                </tr>`;
-                                tbody.insertAdjacentHTML('beforeend', row);
-                            });
-                        }
-                    })
-                    .catch(error => console.error('Error fetching top sellers:', error));
-            });
-
-        });
-    </script>
-
-
 @endsection
