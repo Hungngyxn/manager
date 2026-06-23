@@ -27,8 +27,20 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('attendance:leave')->dailyAt('08:30');
-        $schedule->command('attendance:absent')->dailyAt('16:00');
+        $schedule->command('tiktok:get-labels')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->onOneServer()
+
+            ->before(function () {
+                \Log::info('Cron TikTok: Bắt đầu chạy lúc ' . now());
+            })
+            ->after(function () {
+                \Log::info('Cron TikTok: Kết thúc lúc ' . now());
+            })
+            ->onFailure(function () {
+                \Log::error('Cron TikTok: Lỗi khi chạy command');
+            });
     }
 
     /**
@@ -38,7 +50,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands()
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }

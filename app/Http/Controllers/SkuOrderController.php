@@ -15,7 +15,7 @@ class SkuOrderController extends Controller
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('sku', 'like', "%$search%")
+                $q->where('asin', 'like', "%$search%")
                     ->orWhere('warehouse_name', 'like', "%$search%")
                     ->orWhere('name', 'like', "%$search%");
             });

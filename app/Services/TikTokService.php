@@ -28,19 +28,15 @@ class TikTokService
         $redirectUri = urlencode(config('tiktokshop.redirect_uri'));
         $state = session('tiktok_state') ?? Str::random(40);
 
-        return "https://auth.tiktok-shops.com/oauth/authorize" .
-            "?app_key=" . config('tiktokshop.app_key') .
-            "&state={$state}" .
-            "&redirect_uri={$redirectUri}" .
-            "&response_type=code";
+        return "https://developer.sellersprint.com/open/authorize?key=0J8CJNYBtfLdRBjickYSGA%3D%3D";
     }
 
-    public function getAccessToken(int $userId): string
+    public function getAccessToken($shop): string
     {
-        $token = TiktokToken::where('user_id', $userId)->first();
+        $token = TiktokToken::where('shop_name', $shop->shop_name)->first();
 
         if (!$token) {
-            throw new \Exception("Không tìm thấy token cho user $userId");
+            throw new \Exception("Không tìm thấy token cho user $shop->shop_name");
         }
 
         if (now()->gte($token->expires_at)) {
@@ -55,13 +51,13 @@ class TikTokService
                 $token->update([
                     'access_token' => $newToken['access_token'],
                     'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
-                    'expires_at' => now()->addSeconds($newToken['expires_in']),
+                    'expires_at' => now()->addSeconds($newToken['access_token_expire_in']),
                 ]);
 
                 return $newToken['access_token'];
             } catch (\Exception $e) {
                 Log::error('Refresh token failed', [
-                    'user_id' => $userId,
+                    'user_id' => $shop->shop_name,
                     'error' => $e->getMessage()
                 ]);
                 throw $e;
@@ -143,6 +139,36 @@ class TikTokService
         }
     }
 
+    // public function fetchOrderList(Client $client, int $pageSize = 100): array
+    // {
+    //     $allOrders = [];
+    //     $pageToken = null;
+
+    //     do {
+    //         $params = [
+    //             'page_size' => $pageSize,
+    //         ];
+    //         // //AWAITING_SHIPMENT - AWAITING_COLLECTION
+    //         $body = [
+    //             'order_status' => 'AWAITING_COLLECTION'
+    //         ];
+
+    //         if ($pageToken) {
+    //             $params['page_token'] = $pageToken;
+    //         }
+
+    //         $response = $client->Order->getOrderList($params, $body);
+    //         $orders = $response['orders'] ?? [];
+    //         $pageToken = $response['next_page_token'] ?? null;
+
+    //         $allOrders = array_merge($allOrders, $orders);
+
+    //     } while (!empty($pageToken));
+
+    //     return $allOrders;
+    // }
+
+
     public function fetchOrderList(Client $client, int $pageSize = 100): array
     {
         $allOrders = [];
@@ -153,6 +179,52 @@ class TikTokService
                 'page_size' => $pageSize,
             ];
 
+            $body = [
+                'order_status' => 'AWAITING_SHIPMENT',
+            ];
+
+            if ($pageToken) {
+                $params['page_token'] = $pageToken;
+            }
+
+            $response = $client->Order->getOrderList($params, $body);
+
+            $orders = $response['orders'] ?? [];
+            $pageToken = $response['next_page_token'] ?? null;
+
+            $allOrders = array_merge($allOrders, $orders);
+        } while (!empty($pageToken));
+
+        return $allOrders;
+    }
+
+    public function fetchOrderDetails(Client $client, array $orderIds): array
+    {
+        try {
+            $response = $client->Order->getOrderDetail([
+                'ids' => implode(',', $orderIds)
+            ]);
+
+            return $response['order_list'] ?? $response['orders'] ?? [];
+        } catch (\Exception $e) {
+            Log::error('TikTokService fetchOrderDetails error', [
+                'order_ids' => $orderIds,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    public function fetchOrderListToShip(Client $client, int $pageSize = 100): array
+    {
+        $allOrders = [];
+        $pageToken = null;
+
+        do {
+            $params = [
+                'page_size' => $pageSize,
+            ];
+            // //AWAITING_SHIPMENT - AWAITING_COLLECTION
             $body = [
                 'order_status' => 'AWAITING_COLLECTION'
             ];
@@ -257,6 +329,7 @@ class TikTokService
                 'user_id' => Auth::id(),
                 'access_token' => $accessToken,
                 'shop_cipher' => $shopCipher,
+                'team_id' => 10,
             ]
         );
     }

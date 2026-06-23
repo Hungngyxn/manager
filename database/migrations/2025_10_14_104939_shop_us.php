@@ -9,20 +9,22 @@ return new class extends Migration {
     {
         Schema::create('shop_us', function (Blueprint $table) {
             $table->id();
-            $table->string('order_id')->unique();
-            $table->string('product_name');
-            $table->string('sku')->nullable();
-            $table->string('product_image')->nullable();
-
+            $table->string('order_id')->nullable();
+            $table->string('shop_code')->nullable();
             $table->string('customer_name')->nullable();
             $table->string('customer_phone')->nullable();
+            $table->string('customer_country')->nullable();
+            $table->string('customer_state')->nullable();
+            $table->string('customer_city')->nullable();
             $table->text('customer_address')->nullable();
+            $table->string('customer_postcode')->nullable();
 
+            $table->json('products')->nullable(); // lưu danh sách sản phẩm dạng JSON
             $table->string('tracking_number')->nullable();
             $table->string('label_link')->nullable();
 
-            $table->enum('status', ['Pending', 'Shipped', 'Delivered', 'Cancelled'])->default('Pending');
-            $table->decimal('total_amount', 10, 2)->default(0);
+            $table->string('status')->default('Unknown');
+            $table->decimal('total_amount', 15, 2)->default(0);
 
             $table->timestamps();
         });

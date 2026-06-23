@@ -52,7 +52,10 @@ class CheckAccess
             $name = "log";
         } else if ($name == "bonus") {
             $name = "bonus";
+        } else if ($name == "track") {
+            $name = "track";
         }
+
 
         $menuId = Menu::whereName($name)->first()->id;
         $accessType = Access::where([

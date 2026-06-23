@@ -50,7 +50,7 @@
                                 data-bs-target="#connectTikTokModal">
                                 <i class="fab fa-tiktok me-2"></i> Connect TikTok Shop
                             </button>
-                            <a type="button" class ="btn btn-outline-primary px-3 py-2" href="{{ route('shop.financeShop') }}">Finance</a>
+                            <a type="button" class ="btn btn-outline-primary px-3 py-2" href="{{ route('shop.exportBalance') }}">Export Balance</a>
                         </div>
                         @endcanEdit
 
