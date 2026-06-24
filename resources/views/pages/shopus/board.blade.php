@@ -1,67 +1,93 @@
-@extends('layouts.admin', ['accesses' => $accesses, 'active' => 'orders'])
+@extends('layouts.admin', ['accesses' => $accesses, 'active' => 'order'])
 
 @section('_content')
     <div class="container-fluid mt-3 px-4">
         {{-- 🔹 Header --}}
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="fw-bold mb-0"><i class="bi bi-box-seam"></i> Orders List</h4>
+            <h4 class="fw-bold mb-0"><i class="bi bi-box-seam"></i> ShopUS Orders</h4>
         </div>
 
-        {{-- 🔹 Filters --}}
         <div class="card shadow-sm mb-3 border-0">
             <div class="card-body py-3">
-                <div class="row align-items-center g-2">
-                    {{-- Export + Label --}}
-                    <div class="col-md-4 d-flex gap-2">
-                        <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
-                            @csrf
-                            <button type="submit" class="btn btn-success px-3">
-                                <i class="bi bi-download"></i> Export Selected
-                            </button>
-                        </form>
+                {{-- 🔹 Filter kiểu Orders (responsive) --}}
+                <form method="GET" action="{{ route('orders.index') }}" id="filterForm" class="row g-2 align-items-center">
+                    @if ($isAdmin && count($sellers) > 0)
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                            <select name="user_id" class="form-select">
+                                <option value="">-- All Sellers --</option>
+                                <option value="Unassigned" {{ request('user_id') === 'Unassigned' ? 'selected' : '' }}>
+                                    Unassigned</option>
+                                @foreach ($sellers as $seller)
+                                    <option value="{{ $seller->id }}"
+                                        {{ request('user_id') == $seller->id ? 'selected' : '' }}>
+                                        {{ $seller->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
 
-                        <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.createLabel') }}">
-                            <i class="bi bi-printer"></i> Create Label
-                        </a>
-
-                        <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.getLabel') }}">
-                            <i class="bi bi-printer"></i> Get Label
-                        </a>
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
+                        <select name="shop_name" class="form-select">
+                            <option value="">-- All Shops --</option>
+                            @foreach ($shopNames as $shopName)
+                                <option value="{{ $shopName }}" {{ request('shop_name') == $shopName ? 'selected' : '' }}>
+                                    {{ $shopName }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
 
-                    {{-- Form Filter --}}
-                    <div class="col-md-8">
-                        <form method="GET" action="{{ route('shopus.index') }}" class="row g-2 align-items-center">
-                            <div class="col-md-4">
-                                <input type="text" name="search" class="form-control"
-                                    placeholder="🔍 Search by name, phone, or order ID" value="{{ request('search') }}">
-                            </div>
-
-                            <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                    <input type="text" id="date" name="date" class="form-control"
-                                        placeholder="Select date" value="{{ request('date') }}">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select name="shop" class="form-select">
-                                    <option value="">-- Filter by Shop --</option>
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop }}"
-                                            {{ request('shop') == $shop ? 'selected' : '' }}>
-                                            {{ $shop }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i>
-                                    Filter</button>
-                            </div>
-                        </form>
+                    <div class="col-6 col-md-4 col-lg-2">
+                        <div class="input-group flatpickr position-relative">
+                            <input type="text" class="form-control ps-5 datepicker" name="date_start"
+                                value="{{ request('date_start') }}" placeholder="Start Date">
+                            <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
+                                <i class="fas fa-calendar-alt"></i>
+                            </span>
+                        </div>
                     </div>
+                    <div class="col-6 col-md-4 col-lg-2">
+                        <div class="input-group flatpickr position-relative">
+                            <input type="text" class="form-control ps-5 datepicker" name="date_end"
+                                value="{{ request('date_end') }}" placeholder="End Date">
+                            <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
+                                <i class="fas fa-calendar-alt"></i>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-8 col-md-6 col-lg-3">
+                        <input type="text" name="search" value="{{ request('search') }}" class="form-control"
+                            placeholder="🔍 Search name, order ID, tracking...">
+                    </div>
+
+                    <div class="col-12 col-sm-4 col-md-2 col-lg-auto d-flex gap-2">
+                        <button class="btn btn-outline-secondary flex-fill" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button type="button" class="btn btn-danger flex-fill" onclick="resetFilters()"
+                            title="Reset filters">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </form>
+
+                {{-- 🔹 Action buttons (giữ Export, bỏ Import) --}}
+                <div class="d-flex align-items-center gap-2 flex-wrap pt-3">
+                    <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.createLabel') }}">
+                        <i class="bi bi-printer"></i> Create Label
+                    </a>
+                    <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.getLabel') }}">
+                        <i class="bi bi-printer"></i> Get Label
+                    </a>
+
+                    <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
+                        @csrf
+                        <button type="submit" class="btn btn-success px-3">
+                            <i class="bi bi-download"></i> Export Selected
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -75,6 +101,7 @@
                         <tr>
                             <th style="width:40px"><input type="checkbox" id="checkAll"></th>
                             <th>Action</th>
+                            <th>Seller</th>
                             <th>Order ID</th>
                             <th>Customer Info</th>
                             <th>Product</th>
@@ -126,6 +153,9 @@
                                     </div>
                                 </td>
 
+                                {{-- Seller --}}
+                                <td>{{ $order->seller->name ?? 'Unassigned' }}</td>
+
                                 {{-- Order ID --}}
                                 <td class="text-start">
                                     <div class="fw-semibold">{{ $order->order_id }}</div>
@@ -146,7 +176,7 @@
                                     </small>
                                 </td>
 
-                                {{-- Products ngoài bảng --}}
+                                {{-- Products --}}
                                 <td class="text-start">
                                     @php
                                         $products = is_string($order->products)
@@ -190,7 +220,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="py-4 text-muted">No orders found.</td>
+                                <td colspan="10" class="py-4 text-muted">No orders found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -200,7 +230,7 @@
 
         {{-- 🔹 Pagination + PerPage --}}
         <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
-            <form method="GET" action="{{ route('shopus.index') }}" class="d-flex align-items-center">
+            <form method="GET" action="{{ route('orders.index') }}" class="d-flex align-items-center">
                 @foreach (request()->except('perPage', 'page') as $key => $value)
                     <input type="hidden" name="{{ $key }}" value="{{ $value }}">
                 @endforeach
@@ -217,7 +247,7 @@
         </div>
     </div>
 
-    {{-- 🔹 Modal Update Print Info (Đã tinh gọn theo ảnh mẫu 2) --}}
+    {{-- 🔹 Modal Update Print Info --}}
     <div class="modal fade" id="updatePrintModal" tabindex="-1" aria-labelledby="updatePrintModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" style="max-width: 580px;">
@@ -243,7 +273,6 @@
                                 <option value="Expedite Tiktok">Expedite Tiktok</option>
                             </select>
                         </div>
-
 
                         <div class="mb-3 px-1">
                             <label class="form-label small fw-semibold text-dark mb-1">Printer: <span
@@ -274,9 +303,13 @@
         </div>
     </div>
 
-    {{-- 🔹 JS Xử Lý Logic Giao Diện Mới --}}
+    {{-- 🔹 JS --}}
     @push('scripts')
         <script>
+            function resetFilters() {
+                window.location.href = "{{ route('orders.index') }}";
+            }
+
             document.addEventListener('DOMContentLoaded', () => {
                 // 🔔 Flash message (toast)
                 @if (session('status') || session('success') || session('error'))
@@ -294,31 +327,29 @@
                     }
                 @endif
 
+                // Datepicker
+                if (typeof flatpickr !== 'undefined') {
+                    flatpickr(".datepicker", {
+                        dateFormat: "Y-m-d"
+                    });
+                }
+
                 // ⏳ Phản hồi tức thì khi bấm Create Label / Get Label (việc chạy ở nền)
                 document.querySelectorAll('.btn-label-sync').forEach(btn => {
-                    btn.addEventListener('click', function () {
+                    btn.addEventListener('click', function() {
                         this.classList.add('disabled');
                         this.setAttribute('aria-disabled', 'true');
-                        this.innerHTML =
-                            '<span class="spinner-border spinner-border-sm"></span> Processing...';
+                        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
                     });
                 });
 
                 // Checkbox Select All
                 const checkAll = document.getElementById('checkAll');
                 checkAll?.addEventListener('click', e => {
-                    document.querySelectorAll('input[name="ids[]"]').forEach(cb => cb.checked = e.target
-                        .checked);
+                    document.querySelectorAll('input[name="ids[]"]').forEach(cb => cb.checked = e.target.checked);
                 });
 
-                // Datepicker
-                if (typeof flatpickr !== 'undefined') {
-                    flatpickr("#date", {
-                        dateFormat: "Y-m-d"
-                    });
-                }
-
-                // Export Form
+                // Export Selected
                 document.getElementById('exportForm')?.addEventListener('submit', function(e) {
                     e.preventDefault();
                     const checked = document.querySelectorAll('input[name="ids[]"]:checked');
@@ -341,21 +372,20 @@
                     form.submit();
                 });
 
-                // 🌟 RENDER ĐA SẢN PHẨM LẶP ĐỘC LẬP VÀO MODAL POPUP
+                // 🌟 Render đa sản phẩm vào modal Print
                 const printModal = document.getElementById('updatePrintModal');
                 if (printModal) {
                     printModal.addEventListener('show.bs.modal', function(event) {
                         const button = event.relatedTarget;
                         const orderData = JSON.parse(button.getAttribute('data-order'));
 
-                        // Đổ dữ liệu dùng chung của Order
                         printModal.querySelector('#modalShippingLabel').value = orderData.label_link || '';
 
                         const form = printModal.querySelector('#printInfoForm');
                         form.action = `/admin/orders/${orderData.order_id}/save-print-info`;
 
                         const container = printModal.querySelector('#modalProductsContainer');
-                        container.innerHTML = ''; // Clear dữ liệu cũ
+                        container.innerHTML = '';
 
                         const products = orderData.products || [];
 
@@ -369,7 +399,6 @@
                             const pQty = product.quantity || 1;
                             const pType = product.product_type || 'Tshirt';
 
-                            // Tạo danh sách 12 nút vị trí in (Độc lập theo từng sản phẩm)
                             const positions = ['Front', 'Back', 'Neck', 'Right', 'Left', '3D',
                                 'Front Right', 'Front Left', 'Back Right', 'Back Left',
                                 'Center Front', 'Center Back'
@@ -378,7 +407,6 @@
                             positions.forEach(pos => {
                                 const slug = pos.toLowerCase().replace(/ /g, '_');
                                 const inputId = `pos_${index}_${slug}`;
-                                // Mặc định tích chọn nút 'Front' giống thiết kế
                                 const checked = pos === 'Front' ? 'checked' : '';
 
                                 positionsHtml += `
@@ -389,13 +417,12 @@
                                 `;
                             });
 
-                            // Khối giao diện sản phẩm clone chuẩn theo ảnh mẫu số 2
                             const productHtml = `
                                 <div class="product-item-block p-3 mb-3 rounded" style="background-color: #f8f9fa; border: 1px solid #e9ecef;">
                                     <div class="fw-bold mb-2 text-dark text-truncate d-block" style="font-size: 0.85rem;">
                                         ${pName}, ${pColor}, ${pSize}
                                     </div>
-                                    
+
                                     <div class="row g-3 align-items-start mb-2">
                                         <div class="col-3 text-center">
                                             <img src="${imgUrl}" class="img-fluid rounded border bg-white shadow-sm" alt="Product" style="object-fit: cover; aspect-ratio: 1/1; max-height: 90px; width: 100%;">
@@ -457,7 +484,6 @@
             });
         </script>
 
-        {{-- Thêm đoạn CSS nhỏ để bổ sung kiểu dáng viền đỏ khi click chọn Nút vị trí in giống ảnh mẫu số 1 của bạn --}}
         <style>
             .product-item-block .btn-check:checked+.btn-outline-secondary {
                 border-color: #dc3545 !important;

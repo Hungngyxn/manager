@@ -29,13 +29,13 @@ class OrderService
 
         $this->profit = $this->total - $this->cost - $this->fulfill_fee;
 
-        if ($this->sku->tierBonus->tier != 'Tier 1') {
+        if (optional($this->sku->tierBonus)->tier != 'Tier 1') {
             $this->cost *= 1.5;
             $this->profit *= 1.5;
             $this->total *= 1.5;
         }
 
-        $bonus_pct = $this->sku->tier->bonus ?? 0;
+        $bonus_pct = optional($this->sku->tierBonus)->bonus ?? 0;
         $this->bonus = $this->profit * ($bonus_pct / 100);
 
         return [

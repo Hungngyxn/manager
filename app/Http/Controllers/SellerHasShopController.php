@@ -278,8 +278,8 @@ class SellerHasShopController extends Controller
             DB::commit();
 
             return redirect()->back()->with([
-                'status' => 'Shop import completed successfully!',
-                'error' => 'Failed rows: ' . implode(', ', $import->created),
+                'status' => 'Shop import completed successfully! Created/updated: ' . count($import->created) . ' row(s).',
+                'error' => empty($import->skipped) ? null : 'Skipped rows: ' . implode(', ', $import->skipped),
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

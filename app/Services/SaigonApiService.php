@@ -7,8 +7,14 @@ use GuzzleHttp\Exception\ClientException;
 
 class SaigonApiService
 {
-    protected $baseUrl = 'https://api.track123.com/gateway/open-api/tk/v2.1';
-    protected $apiKey = 'ce2b42b2484d402298276e8cd4c6a50b';
+    protected $baseUrl;
+    protected $apiKey;
+
+    public function __construct()
+    {
+        $this->baseUrl = config('services.track123.base_url');
+        $this->apiKey = config('services.track123.key');
+    }
 
     protected function client()
     {

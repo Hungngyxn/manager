@@ -107,7 +107,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/', [SellerHasShopController::class, 'index'])->name('index');
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
-        Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
+        Route::post('/check-seller', [SellerHasShopController::class, 'checkSeller'])->name('check_seller');
         Route::get('/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');

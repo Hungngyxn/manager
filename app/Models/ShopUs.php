@@ -13,6 +13,7 @@ class ShopUs extends Model
 
     protected $fillable = [
         'order_id',
+        'user_id',
         'customer_name',
         'customer_phone',
         'customer_country',
@@ -32,4 +33,9 @@ class ShopUs extends Model
     protected $casts = [
         'products' => 'array', // để Laravel tự decode JSON thành mảng
     ];
+
+    public function seller()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

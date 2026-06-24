@@ -12,7 +12,7 @@ class GetOrderLabels extends Command
 
     public function handle(ShopUsController $tiktok)
     {
-        $tiktok->syncOrdersWithLabel();   // Chỉ gọi 1 hàm duy nhất
+        $tiktok->runSyncOrdersWithLabel();   // CLI chạy trực tiếp phần xử lý nặng
         return Command::SUCCESS;
     }
 }

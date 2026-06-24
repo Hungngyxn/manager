@@ -32,7 +32,20 @@ class ShopUsController extends Controller
 	 */
 	public function index(Request $request)
 	{
+		$user = auth()->user();
+		$isAdmin = (int) optional($user->role)->is_super_user === 1;
+		$perPage = $request->get('perPage', 10);
+
 		$query = ShopUs::query();
+
+		/*
+		 * Phân quyền: admin (is_super_user = 1) xem tất cả.
+		 * User thường chỉ xem đơn của mình (cột shop_us.user_id,
+		 * được gán khi sync và backfill từ seller_has_shop).
+		 */
+		if (!$isAdmin) {
+			$query->where('user_id', $user->id);
+		}
 
 		if ($request->filled('search')) {
 			$search = $request->search;
@@ -49,21 +62,98 @@ class ShopUsController extends Controller
 		}
 
 		if ($request->filled('status')) {
-			$query->where('status', $request->seller);
+			$query->where('status', $request->status);
 		}
 
 		if ($request->filled('date')) {
-			$date = $request->date;
-			$query->whereDate('created_at', $date);
+			$query->whereDate('created_at', $request->date);
 		}
 
-		$orders = $query->latest()->get();
-		$ordercount = $orders->count();
+		$ordercount = (clone $query)->count();
 
-		// lấy danh sách shop & seller để lọc
-		$shops = ShopUs::distinct()->pluck('shop_code');
+		$orders = $query->latest()
+			->paginate($perPage)
+			->appends($request->only(['search', 'shop', 'status', 'date', 'perPage']));
+
+		// Danh sách shop để lọc (giới hạn theo quyền)
+		$shopsQuery = ShopUs::query();
+		if (!$isAdmin) {
+			$shopsQuery->where('user_id', $user->id);
+		}
+		$shops = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
 
 		return view('pages.shopus.shopus', compact('orders', 'ordercount', 'shops'));
+	}
+
+	/**
+	 * Trang ShopUS dạng "orders": bộ filter kiểu trang Orders
+	 * (All Sellers / All Shops / khoảng ngày / search) + bảng item ShopUS.
+	 */
+	public function board(Request $request)
+	{
+		$user = auth()->user();
+		$isAdmin = (int) optional($user->role)->is_super_user === 1;
+		$perPage = $request->get('perPage', 10);
+
+		$query = ShopUs::query()->with('seller');
+
+		// Phân quyền: user thường chỉ thấy đơn của mình
+		if (!$isAdmin) {
+			$query->where('user_id', $user->id);
+		}
+
+		// All Sellers (chỉ admin mới lọc được theo seller)
+		if ($isAdmin && $request->filled('user_id')) {
+			if ($request->user_id === 'Unassigned') {
+				$query->whereNull('user_id');
+			} else {
+				$query->where('user_id', $request->user_id);
+			}
+		}
+
+		// All Shops — shop_us.shop_code lưu shop_name
+		if ($request->filled('shop_name')) {
+			$query->where('shop_code', $request->shop_name);
+		}
+
+		if ($request->filled('date_start')) {
+			$query->whereDate('created_at', '>=', $request->date_start);
+		}
+		if ($request->filled('date_end')) {
+			$query->whereDate('created_at', '<=', $request->date_end);
+		}
+
+		if ($request->filled('search')) {
+			$search = $request->search;
+			$query->where(function ($q) use ($search) {
+				$q->where('order_id', 'like', "%{$search}%")
+					->orWhere('customer_name', 'like', "%{$search}%")
+					->orWhere('shop_code', 'like', "%{$search}%")
+					->orWhere('tracking_number', 'like', "%{$search}%");
+			});
+		}
+
+		$ordercount = (clone $query)->count();
+
+		$orders = $query->latest()
+			->paginate($perPage)
+			->appends($request->only(['user_id', 'shop_name', 'date_start', 'date_end', 'search', 'perPage']));
+
+		// Dropdown sellers (chỉ admin) — chỉ những seller có đơn ShopUS
+		$sellers = collect();
+		if ($isAdmin) {
+			$sellerIds = ShopUs::whereNotNull('user_id')->distinct()->pluck('user_id');
+			$sellers = User::whereIn('id', $sellerIds)->select('id', 'name')->orderBy('name')->get();
+		}
+
+		// Dropdown shops (giới hạn theo quyền)
+		$shopsQuery = ShopUs::query()->whereNotNull('shop_code');
+		if (!$isAdmin) {
+			$shopsQuery->where('user_id', $user->id);
+		}
+		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
+
+		return view('pages.shopus.board', compact('orders', 'ordercount', 'sellers', 'shopNames', 'isAdmin'));
 	}
 
 	/**
@@ -86,15 +176,29 @@ class ShopUsController extends Controller
 		return redirect()->back()->with('success', 'ShopUS order updated successfully.');
 	}
 
+	/**
+	 * Action web: KHÔNG chạy đồng bộ trực tiếp (rất nặng, làm treo trình duyệt).
+	 * Đẩy việc nặng chạy sau khi response đã trả về để trang phản hồi tức thì.
+	 */
 	public function syncOrdersWithLabel()
+	{
+		\App\Jobs\SyncShopUsLabelsJob::dispatchAfterResponse();
+
+		return redirect()->back()->with('status', 'Đang tạo label ở chế độ nền. Vui lòng tải lại trang sau ít phút.');
+	}
+
+	/**
+	 * Phần xử lý nặng thực sự: gọi từ Job (web) hoặc trực tiếp từ cron (CLI).
+	 */
+	public function runSyncOrdersWithLabel(): void
 	{
 		ini_set('max_execution_time', 0);
 		set_time_limit(0);
 
 		$shops = SellerHasShop::where('team_id', 10)->get();
 
-		$pst1 = new \DateTime('2026-06-18', new \DateTimeZone('America/Los_Angeles'));
-		$pst = (clone $pst1)->modify('-10 day');
+		$pst1 = new \DateTime('now', new \DateTimeZone('America/Los_Angeles'));
+		$pst = (clone $pst1)->modify('-1 day');
 
 		$startOfDaySLA = (clone $pst)->setTime(2, 0, 0)->getTimestamp();
 		$endOfDaySLA = (clone $pst1)->setTime(6, 0, 0)->getTimestamp();
@@ -105,6 +209,7 @@ class ShopUsController extends Controller
 
 				/* ───────── Access Token ───────── */
 				$token = $this->tiktok->getAccessToken($shop);
+
 				if (!$token) {
 					Log::warning("Không tìm thấy token cho shop: {$shop->shop_name}");
 					continue;
@@ -113,7 +218,7 @@ class ShopUsController extends Controller
 				$client = $this->tiktok->client();
 				$client->setAccessToken($token);
 				$client->setShopCipher($shop->shop_cipher);
-
+					
 				$orders = $this->tiktok->fetchOrderList($client);
 
 				if (empty($orders)) {
@@ -127,27 +232,27 @@ class ShopUsController extends Controller
 						$orderId = $order['id'];
 						$slaTime = $order['rts_time'] ?? null;
 
-						// if (!$slaTime || $slaTime < $startOfDaySLA || $slaTime > $endOfDaySLA) {
-						// 	Log::info("Shop {$shop->shop_name} - Bỏ qua Order {$orderId} (label được tạo không phải hôm nay).");
-						// 	continue;
-						// }
+						if (!$slaTime || $slaTime < $startOfDaySLA || $slaTime > $endOfDaySLA) {
+							Log::info("Shop {$shop->shop_name} - Bỏ qua Order {$orderId} (label được tạo không phải hôm nay).");
+							continue;
+						}
 
-						// $packageId = $order['packages'][0]['id'] ?? null;
-						// if (!$packageId) {
-						// 	Log::warning("Order {$orderId} chưa có package_id.");
-						// 	continue;
-						// }
+						$packageId = $order['packages'][0]['id'] ?? null;
+						if (!$packageId) {
+							Log::warning("Order {$orderId} chưa có package_id.");
+							continue;
+						}
 
 						$label = null;
-						// try {
-						// 	$label = $client->Fulfillment->getPackageShippingDocument(
-						// 		$packageId,
-						// 		'SHIPPING_LABEL',
-						// 		'A6'
-						// 	);
-						// } catch (\Throwable $ex) {
-						// 	Log::warning("Không lấy được label Order {$orderId}: " . $ex->getMessage());
-						// }
+						try {
+							$label = $client->Fulfillment->getPackageShippingDocument(
+								$packageId,
+								'SHIPPING_LABEL',
+								'A6'
+							);
+						} catch (\Throwable $ex) {
+							Log::warning("Không lấy được label Order {$orderId}: " . $ex->getMessage());
+						}
 
 						/* ───────── Gom SKU ───────── */
 						$items = [];
@@ -192,6 +297,7 @@ class ShopUsController extends Controller
 							['order_id' => $orderId],
 							[
 								'order_id' => $orderId,
+								'user_id' => $shop->user_id,
 								'shop_code' => $shop->shop_name,
 								'customer_name' => $recipient['name'] ?? '',
 								'customer_phone' => $recipient['phone_number'] ?? '',
@@ -225,8 +331,6 @@ class ShopUsController extends Controller
 				continue; // 👉 lỗi shop thì sang shop tiếp
 			}
 		}
-
-		return redirect()->back();
 	}
 
 
@@ -302,7 +406,20 @@ class ShopUsController extends Controller
 		];
 	}
 
+	/**
+	 * Action web: đẩy việc cập nhật trạng thái chạy sau response để không treo trình duyệt.
+	 */
 	public function syncPendingOrdersStatus()
+	{
+		\App\Jobs\SyncShopUsPendingStatusJob::dispatchAfterResponse();
+
+		return redirect()->back()->with('status', 'Đang cập nhật trạng thái đơn ở chế độ nền. Vui lòng tải lại trang sau ít phút.');
+	}
+
+	/**
+	 * Phần xử lý nặng thực sự: gọi từ Job (web) hoặc trực tiếp từ CLI.
+	 */
+	public function runSyncPendingOrdersStatus(): void
 	{
 		ini_set('max_execution_time', 0);
 		set_time_limit(0);
@@ -335,7 +452,7 @@ class ShopUsController extends Controller
 				foreach ($orderChunks as $chunk) {
 					try {
 						$ordersFromServer = $this->tiktok->fetchOrderDetails($client, $chunk);
-						dd($ordersFromServer);
+
 
 						if (empty($ordersFromServer)) {
 							continue;
@@ -371,8 +488,6 @@ class ShopUsController extends Controller
 				continue;
 			}
 		}
-
-		return redirect()->back()->with('success', 'Đã cập nhật trạng thái các đơn hàng thành công.');
 	}
 
 }
