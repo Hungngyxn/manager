@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Log;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -40,11 +41,11 @@ class ShopUsController extends Controller
 
 		/*
 		 * Phân quyền: admin (is_super_user = 1) xem tất cả.
-		 * User thường chỉ xem đơn của mình (cột shop_us.user_id,
-		 * được gán khi sync và backfill từ seller_has_shop).
+		 * User thường chỉ xem đơn của shop mình sở hữu — join qua
+		 * seller_has_shop (shop_us.shop_code = seller_has_shop.shop_name).
 		 */
 		if (!$isAdmin) {
-			$query->where('user_id', $user->id);
+			$query->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
 
 		if ($request->filled('search')) {
@@ -78,11 +79,22 @@ class ShopUsController extends Controller
 		// Danh sách shop để lọc (giới hạn theo quyền)
 		$shopsQuery = ShopUs::query();
 		if (!$isAdmin) {
-			$shopsQuery->where('user_id', $user->id);
+			$shopsQuery->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
 		$shops = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
 
 		return view('pages.shopus.shopus', compact('orders', 'ordercount', 'shops'));
+	}
+
+	/**
+	 * Subquery trả về danh sách shop_name mà 1 user sở hữu (qua seller_has_shop).
+	 * Dùng cho whereIn('shop_code', ...) trên bảng shop_us.
+	 */
+	private function ownedShopCodes($userId)
+	{
+		return function ($q) use ($userId) {
+			$q->select('shop_name')->from('seller_has_shop')->where('user_id', $userId);
+		};
 	}
 
 	/**
@@ -97,17 +109,20 @@ class ShopUsController extends Controller
 
 		$query = ShopUs::query()->with('seller');
 
-		// Phân quyền: user thường chỉ thấy đơn của mình
+		// Phân quyền: user thường chỉ thấy đơn của shop mình sở hữu (join seller_has_shop)
 		if (!$isAdmin) {
-			$query->where('user_id', $user->id);
+			$query->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
 
 		// All Sellers (chỉ admin mới lọc được theo seller)
 		if ($isAdmin && $request->filled('user_id')) {
 			if ($request->user_id === 'Unassigned') {
-				$query->whereNull('user_id');
+				// Đơn của shop chưa được gán seller nào
+				$query->whereNotIn('shop_code', function ($q) {
+					$q->select('shop_name')->from('seller_has_shop')->whereNotNull('user_id');
+				});
 			} else {
-				$query->where('user_id', $request->user_id);
+				$query->whereIn('shop_code', $this->ownedShopCodes($request->user_id));
 			}
 		}
 
@@ -139,17 +154,20 @@ class ShopUsController extends Controller
 			->paginate($perPage)
 			->appends($request->only(['user_id', 'shop_name', 'date_start', 'date_end', 'search', 'perPage']));
 
-		// Dropdown sellers (chỉ admin) — chỉ những seller có đơn ShopUS
+		// Dropdown sellers (chỉ admin) — seller sở hữu shop có đơn trong ShopUS
 		$sellers = collect();
 		if ($isAdmin) {
-			$sellerIds = ShopUs::whereNotNull('user_id')->distinct()->pluck('user_id');
+			$sellerIds = SellerHasShop::whereNotNull('user_id')
+				->whereIn('shop_name', ShopUs::select('shop_code')->distinct())
+				->distinct()
+				->pluck('user_id');
 			$sellers = User::whereIn('id', $sellerIds)->select('id', 'name')->orderBy('name')->get();
 		}
 
 		// Dropdown shops (giới hạn theo quyền)
 		$shopsQuery = ShopUs::query()->whereNotNull('shop_code');
 		if (!$isAdmin) {
-			$shopsQuery->where('user_id', $user->id);
+			$shopsQuery->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
 		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
 
@@ -228,7 +246,6 @@ class ShopUsController extends Controller
 
 				foreach ($orders as $order) {
 					try {
-
 						$orderId = $order['id'];
 						$slaTime = $order['rts_time'] ?? null;
 
@@ -293,11 +310,18 @@ class ShopUsController extends Controller
 						$trackingNumber = $label['tracking_number'] ?? ($existing->tracking_number ?? null);
 						$labelLink = $label['doc_url'] ?? ($existing->label_link ?? null);
 
+						// Tải label (PDF) về local để tránh link TikTok hết hạn
+						if (!empty($label['doc_url'])) {
+							$localLabel = $this->localizeLabel($label['doc_url'], $orderId);
+							if ($localLabel) {
+								$labelLink = $localLabel;
+							}
+						}
+
 						ShopUS::updateOrCreate(
 							['order_id' => $orderId],
 							[
 								'order_id' => $orderId,
-								'user_id' => $shop->user_id,
 								'shop_code' => $shop->shop_name,
 								'customer_name' => $recipient['name'] ?? '',
 								'customer_phone' => $recipient['phone_number'] ?? '',
@@ -348,6 +372,45 @@ class ShopUsController extends Controller
 		$fileName = 'orders_selected_' . now()->format('Ymd_His') . '.xlsx';
 
 		return Excel::download(new ShopUsExport($orders), $fileName);
+	}
+
+	/**
+	 * Tải file label (PDF) từ URL TikTok về local (storage/app/public/labels),
+	 * trả về URL local để hiển thị. Trả về null nếu tải thất bại.
+	 *
+	 * Mục đích: link TikTok có chữ ký + expire nên sẽ hết hạn; lưu bản local
+	 * để người dùng bấm vào lúc nào cũng mở được.
+	 */
+	public function localizeLabel(?string $url, string $orderId): ?string
+	{
+		if (!$url || !str_starts_with($url, 'http')) {
+			return null;
+		}
+
+		// Đã là link local rồi thì không tải lại
+		if (str_contains($url, '/storage/labels/')) {
+			return $url;
+		}
+
+		try {
+			$response = Http::timeout(60)->get($url);
+
+			if (!$response->successful()) {
+				Log::warning("Tải label thất bại Order {$orderId}: HTTP {$response->status()}");
+				return null;
+			}
+
+			// Tên file an toàn theo order_id; label TikTok là PDF
+			$safeId = preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderId);
+			$path = "labels/{$safeId}.pdf";
+
+			Storage::disk('public')->put($path, $response->body());
+
+			return Storage::disk('public')->url($path);
+		} catch (\Throwable $e) {
+			Log::warning("Lỗi tải label Order {$orderId}: " . $e->getMessage());
+			return null;
+		}
 	}
 
 	public function parseSku(string $rawSku, int $originalQuantity): array

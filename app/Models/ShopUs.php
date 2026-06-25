@@ -13,7 +13,6 @@ class ShopUs extends Model
 
     protected $fillable = [
         'order_id',
-        'user_id',
         'customer_name',
         'customer_phone',
         'customer_country',
@@ -34,8 +33,27 @@ class ShopUs extends Model
         'products' => 'array', // để Laravel tự decode JSON thành mảng
     ];
 
+    /**
+     * shop_us KHÔNG có user_id. Liên kết qua seller_has_shop:
+     * shop_us.shop_code (lưu shop_name) = seller_has_shop.shop_name.
+     */
+    public function shop()
+    {
+        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_name');
+    }
+
+    /**
+     * Seller sở hữu đơn, suy ra qua seller_has_shop.user_id.
+     */
     public function seller()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->hasOneThrough(
+            User::class,
+            SellerHasShop::class,
+            'shop_name', // FK trên seller_has_shop khớp local key của shop_us
+            'id',        // PK trên users
+            'shop_code', // local key trên shop_us
+            'user_id'    // local key trên seller_has_shop -> users.id
+        );
     }
 }

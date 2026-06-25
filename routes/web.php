@@ -166,7 +166,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('shopus')->name('shopus.')->group(function () {
         Route::get('/', [ShopUsController::class, 'index'])->name('index');
         Route::post('/update', [ShopUsController::class, 'update'])->name('update');
-        Route::get('/create-label', [ShopUsController::class, 'syncOrdersWithLabel'])->name('createLabel');
+        Route::get('/create-label', [ShopUsController::class, 'runSyncOrdersWithLabel'])->name('createLabel');
         Route::get('/get-label', [ShopUsController::class, 'syncPendingOrdersStatus'])->name('getLabel');
         Route::post('/export-selected', [ShopUsController::class, 'exportSelected'])
             ->name('export.selected');
