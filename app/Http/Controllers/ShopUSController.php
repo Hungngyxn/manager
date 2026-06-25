@@ -29,7 +29,7 @@ class ShopUsController extends Controller
 		$this->tiktok = $tiktok;
 	}
 	/**
-	 * Hiển thị danh sách đơn hàng ShopUS
+	 * Danh sách đơn ShopUS.
 	 */
 	public function index(Request $request)
 	{
@@ -39,11 +39,7 @@ class ShopUsController extends Controller
 
 		$query = ShopUs::query();
 
-		/*
-		 * Phân quyền: admin (is_super_user = 1) xem tất cả.
-		 * User thường chỉ xem đơn của shop mình sở hữu — join qua
-		 * seller_has_shop (shop_us.shop_code = seller_has_shop.shop_name).
-		 */
+		// Phân quyền: admin xem tất cả; user thường chỉ xem shop mình sở hữu.
 		if (!$isAdmin) {
 			$query->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
@@ -87,8 +83,7 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Subquery trả về danh sách shop_name mà 1 user sở hữu (qua seller_has_shop).
-	 * Dùng cho whereIn('shop_code', ...) trên bảng shop_us.
+	 * Subquery danh sách shop_name một user sở hữu (qua seller_has_shop).
 	 */
 	private function ownedShopCodes($userId)
 	{
@@ -98,8 +93,7 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Trang ShopUS dạng "orders": bộ filter kiểu trang Orders
-	 * (All Sellers / All Shops / khoảng ngày / search) + bảng item ShopUS.
+	 * Trang orders: filter (seller / shop / ngày / search) + bảng item ShopUS.
 	 */
 	public function board(Request $request)
 	{
@@ -126,7 +120,7 @@ class ShopUsController extends Controller
 			}
 		}
 
-		// All Shops — shop_us.shop_code lưu shop_name
+		// All Shops: shop_us.shop_code lưu shop_name
 		if ($request->filled('shop_name')) {
 			$query->where('shop_code', $request->shop_name);
 		}
@@ -154,7 +148,7 @@ class ShopUsController extends Controller
 			->paginate($perPage)
 			->appends($request->only(['user_id', 'shop_name', 'date_start', 'date_end', 'search', 'perPage']));
 
-		// Dropdown sellers (chỉ admin) — seller sở hữu shop có đơn trong ShopUS
+		// Dropdown sellers (chỉ admin): seller sở hữu shop có đơn ShopUS
 		$sellers = collect();
 		if ($isAdmin) {
 			$sellerIds = SellerHasShop::whereNotNull('user_id')
@@ -195,8 +189,7 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Action web: KHÔNG chạy đồng bộ trực tiếp (rất nặng, làm treo trình duyệt).
-	 * Đẩy việc nặng chạy sau khi response đã trả về để trang phản hồi tức thì.
+	 * Đẩy việc đồng bộ chạy nền sau response để không treo trình duyệt.
 	 */
 	public function syncOrdersWithLabel()
 	{
@@ -225,7 +218,7 @@ class ShopUsController extends Controller
 
 			try {
 
-				/* ───────── Access Token ───────── */
+				// Access token
 				$token = $this->tiktok->getAccessToken($shop);
 
 				if (!$token) {
@@ -271,7 +264,7 @@ class ShopUsController extends Controller
 							Log::warning("Không lấy được label Order {$orderId}: " . $ex->getMessage());
 						}
 
-						/* ───────── Gom SKU ───────── */
+						// Gom SKU
 						$items = [];
 						foreach ($order['line_items'] as $item) {
 							$basesku = $item['seller_sku'] ?? '';
@@ -297,7 +290,7 @@ class ShopUsController extends Controller
 						}
 						$items = array_values($items);
 
-						/* ───────── Địa chỉ khách ───────── */
+						// Địa chỉ khách
 						$recipient = $order['recipient_address'] ?? [];
 						$district = collect($recipient['district_info'] ?? []);
 
@@ -352,12 +345,10 @@ class ShopUsController extends Controller
 					'message' => $e->getMessage(),
 					'trace' => $e->getTraceAsString(),
 				]);
-				continue; // 👉 lỗi shop thì sang shop tiếp
+				continue; // lỗi shop này thì sang shop kế tiếp
 			}
 		}
 	}
-
-
 
 	public function exportSelected(Request $request)
 	{
@@ -375,11 +366,8 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Tải file label (PDF) từ URL TikTok về local (storage/app/public/labels),
-	 * trả về URL local để hiển thị. Trả về null nếu tải thất bại.
-	 *
-	 * Mục đích: link TikTok có chữ ký + expire nên sẽ hết hạn; lưu bản local
-	 * để người dùng bấm vào lúc nào cũng mở được.
+	 * Tải label PDF từ TikTok về local (storage/app/public/label_links) để tránh
+	 * link TikTok hết hạn. Trả về URL local, hoặc null nếu tải thất bại.
 	 */
 	public function localizeLabel(?string $url, string $orderId): ?string
 	{
@@ -388,7 +376,7 @@ class ShopUsController extends Controller
 		}
 
 		// Đã là link local rồi thì không tải lại
-		if (str_contains($url, '/storage/labels/')) {
+		if (str_contains($url, '/storage/label_links/')) {
 			return $url;
 		}
 
@@ -402,7 +390,7 @@ class ShopUsController extends Controller
 
 			// Tên file an toàn theo order_id; label TikTok là PDF
 			$safeId = preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderId);
-			$path = "labels/{$safeId}.pdf";
+			$path = "label_links/{$safeId}.pdf";
 
 			Storage::disk('public')->put($path, $response->body());
 
@@ -417,7 +405,7 @@ class ShopUsController extends Controller
 	{
 		$rawSku = (trim($rawSku));
 
-		// Nếu SKU không chứa "pack" -> chỉ dùng SkuOrder mapping (nếu có)
+		// SKU không có "pack": chỉ dùng mapping sku_orders (nếu có)
 		if (strpos($rawSku, 'pack') === false) {
 			$skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
 
@@ -437,16 +425,14 @@ class ShopUsController extends Controller
 			];
 		}
 
-		// Nếu SKU có "pack" -> so sánh 2 cách và chọn cost thấp nhất
+		// SKU có "pack": mapping qua sku_orders
 		$results = [];
 
-		// Cách 2: mapping qua sku_orders
 		$skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [$rawSku])->first();
 		if ($skuOrder) {
 			$skuFromOrder = trim($skuOrder->asin);
 			$mappedQuantity = $originalQuantity * max((int) $skuOrder->quantity_per_pack, 1);
 
-			// $sku = Sku::whereRaw('LOWER(sku) = ?', [$skuFromOrder])->first();
 			if ($skuFromOrder) {
 				$results[] = [
 					'sku' => $skuFromOrder,
@@ -515,7 +501,6 @@ class ShopUsController extends Controller
 				foreach ($orderChunks as $chunk) {
 					try {
 						$ordersFromServer = $this->tiktok->fetchOrderDetails($client, $chunk);
-
 
 						if (empty($ordersFromServer)) {
 							continue;
