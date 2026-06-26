@@ -38,8 +38,7 @@ class TikTokService
         if (!$token) {
             throw new \Exception("Không tìm thấy token cho user $shop->shop_name");
         }
-
-        if (now()->gte($token->expires_at)) {
+        if (1>0) {
             $client = $this->client();
             try {
                 $newToken = $client->auth()->refreshNewToken($token->refresh_token);
@@ -51,9 +50,8 @@ class TikTokService
                 $token->update([
                     'access_token' => $newToken['access_token'],
                     'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
-                    'expires_at' => now()->addSeconds($newToken['access_token_expire_in']),
+                    'expires_at' => now()->addSeconds($newToken['expires_in']),
                 ]);
-
                 return $newToken['access_token'];
             } catch (\Exception $e) {
                 Log::error('Refresh token failed', [
@@ -334,39 +332,48 @@ class TikTokService
         );
     }
 
-    public function getOnHoldTransactions(string $accessToken, string $shopCipher, int $offset = 0, int $limit = 50): array
+    public function handleOrderAndGetLabel(Client $client, string $orderId): array
     {
-        $params = [
-            'transaction_type' => 5, // onhold
-            'offset' => $offset,
-            'limit' => $limit,
-            'shop_cipher' => $shopCipher,
-        ];
-
-        $url = 'https://seller-us.tiktok.com/api/v1/pay/statement/balance/detail/query';
-
+        dd(1);
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $accessToken,
-                'Accept' => 'application/json',
-            ])->get($url, $params);
+            $packageResponse = $client->Fulfillment->createPackages($orderId);
 
-            if ($response->successful()) {
-                return $response->json('data.data') ?? [];
-            } else {
-                Log::error('Gọi API onhold thất bại', [
-                    'url' => $url,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return [];
+            if (isset($packageResponse['code']) && $packageResponse['code'] !== 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Lỗi tạo gói hàng: ' . ($packageResponse['message'] ?? 'Không rõ nguyên nhân')
+                ];
             }
+
+            return [
+                'success' => true,
+
+            ];
+
         } catch (\Exception $e) {
-            Log::error('Exception khi gọi API onhold', [
-                'error' => $e->getMessage(),
-                'params' => $params,
-            ]);
-            return [];
+            return [
+                'success' => false,
+                'message' => 'Hệ thống gặp ngoại lệ: ' . $e->getMessage()
+            ];
         }
     }
+
+    public function getAllPaymentsUpToNow($client): array
+    {
+        $timeLt = time();
+
+        $params = [
+            'create_time_lt' => $timeLt,
+            'page_size' => 100,
+            'sort_field' => 'create_time',
+        ];
+
+        $response = $client->Finance->getPayments($params);
+
+        $payments = $response['payments'] ?? [];
+
+
+        return $payments;
+    }
+
 }

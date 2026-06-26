@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Log;
 use Maatwebsite\Excel\Facades\Excel;
 
-class ShopUsController extends Controller
+class ShopUSController extends Controller
 {
 	protected $tiktok;
 
@@ -93,12 +93,6 @@ class ShopUsController extends Controller
 
 		$shops = SellerHasShop::where('team_id', 10)->get();
 
-		$pst1 = new \DateTime('2026-06-18', new \DateTimeZone('America/Los_Angeles'));
-		$pst = (clone $pst1)->modify('-10 day');
-
-		$startOfDaySLA = (clone $pst)->setTime(2, 0, 0)->getTimestamp();
-		$endOfDaySLA = (clone $pst1)->setTime(6, 0, 0)->getTimestamp();
-
 		foreach ($shops as $shop) {
 
 			try {
@@ -125,30 +119,16 @@ class ShopUsController extends Controller
 					try {
 
 						$orderId = $order['id'];
-						$slaTime = $order['rts_time'] ?? null;
-
-						// if (!$slaTime || $slaTime < $startOfDaySLA || $slaTime > $endOfDaySLA) {
-						// 	Log::info("Shop {$shop->shop_name} - Bỏ qua Order {$orderId} (label được tạo không phải hôm nay).");
-						// 	continue;
-						// }
-
-						// $packageId = $order['packages'][0]['id'] ?? null;
-						// if (!$packageId) {
-						// 	Log::warning("Order {$orderId} chưa có package_id.");
-						// 	continue;
-						// }
 
 						$label = null;
-						// try {
-						// 	$label = $client->Fulfillment->getPackageShippingDocument(
-						// 		$packageId,
-						// 		'SHIPPING_LABEL',
-						// 		'A6'
-						// 	);
-						// } catch (\Throwable $ex) {
-						// 	Log::warning("Không lấy được label Order {$orderId}: " . $ex->getMessage());
-						// }
 
+						try {
+							$this->tiktok->handleOrderAndGetLabel($client, $orderId);
+
+						} catch (\Throwable $ex) {
+							Log::error($ex->getMessage());
+							continue;
+						}
 						/* ───────── Gom SKU ───────── */
 						$items = [];
 						foreach ($order['line_items'] as $item) {
@@ -192,7 +172,7 @@ class ShopUsController extends Controller
 							['order_id' => $orderId],
 							[
 								'order_id' => $orderId,
-								'shop_code' => $shop->shop_name,
+								'shop_code' => $shop->shop_code,
 								'customer_name' => $recipient['name'] ?? '',
 								'customer_phone' => $recipient['phone_number'] ?? '',
 								'customer_address' => $recipient['address_detail'] ?? '',
@@ -321,7 +301,7 @@ class ShopUsController extends Controller
 				$client->setAccessToken($token);
 				$client->setShopCipher($shop->shop_cipher);
 
-				$pendingOrderIds = ShopUs::where('shop_code', $shop->shop_name)
+				$pendingOrderIds = ShopUs::where('shop_code', $shop->shop_code)
 					->whereNotIn('status', ['DELIVERED', 'CANCELLED', 'COMPLETED'])
 					->pluck('order_id')
 					->toArray();
@@ -335,7 +315,6 @@ class ShopUsController extends Controller
 				foreach ($orderChunks as $chunk) {
 					try {
 						$ordersFromServer = $this->tiktok->fetchOrderDetails($client, $chunk);
-						dd($ordersFromServer);
 
 						if (empty($ordersFromServer)) {
 							continue;
@@ -350,8 +329,24 @@ class ShopUsController extends Controller
 									'status' => $newStatus
 								];
 
-								if (!empty($orderData['tracking_number'])) {
-									$updateData['tracking_number'] = $orderData['tracking_number'];
+								if ($newStatus === 'AWAITING_COLLECTION') {
+									$packageId = $orderData['packages'][0]['id'] ?? null;
+
+									if ($packageId) {
+										$label = $client->Fulfillment->getPackageShippingDocument(
+											$packageId,
+											'SHIPPING_LABEL',
+											'A6'
+										);
+
+										if (!empty($label['doc_url'])) {
+											$updateData['label_link'] = $label['doc_url'];
+										}
+									}
+
+									if (!empty($orderData['tracking_number'])) {
+										$updateData['tracking_number'] = $orderData['tracking_number'];
+									}
 								}
 
 								ShopUs::where('order_id', $orderId)->update($updateData);
@@ -372,7 +367,6 @@ class ShopUsController extends Controller
 			}
 		}
 
-		return redirect()->back()->with('success', 'Đã cập nhật trạng thái các đơn hàng thành công.');
+		return redirect()->back()->with('status', 'Đã cập nhật trạng thái các đơn hàng thành công.');
 	}
-
 }

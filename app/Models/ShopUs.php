@@ -32,4 +32,10 @@ class ShopUs extends Model
     protected $casts = [
         'products' => 'array', // để Laravel tự decode JSON thành mảng
     ];
+
+    public function sellerHasShop()
+    {
+        // Liên kết ngược về bảng seller_has_shop qua cột shop_code
+        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
+    }
 }

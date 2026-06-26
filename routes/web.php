@@ -5,7 +5,8 @@ use App\Http\Controllers\BonusController;
 use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductListController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\Report\ReportController;
+use App\Http\Controllers\Report\ReportSellerController;
 use App\Http\Controllers\SellerHasShopController;
 use App\Http\Controllers\ShopAccountController;
 use App\Http\Controllers\ShopUsController;
@@ -150,6 +151,9 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('report')->name('report.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+        //seller
+        Route::get('/seller', [ReportSellerController::class, 'index'])->name('seller');
+
     });
 
     Route::prefix('shop-accounts')->name('shop-accounts.')->group(function () {
