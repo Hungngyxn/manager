@@ -9,84 +9,79 @@
 
         <div class="card shadow-sm mb-3 border-0">
             <div class="card-body py-3">
-                {{-- 🔹 Filter kiểu Orders (responsive) --}}
-                <form method="GET" action="{{ route('orders.index') }}" id="filterForm" class="row g-2 align-items-center">
-                    @if ($isAdmin && count($sellers) > 0)
-                        <div class="col-12 col-sm-6 col-md-4 col-lg-2">
-                            <select name="user_id" class="form-select">
-                                <option value="">-- All Sellers --</option>
-                                <option value="Unassigned" {{ request('user_id') === 'Unassigned' ? 'selected' : '' }}>
-                                    Unassigned</option>
-                                @foreach ($sellers as $seller)
-                                    <option value="{{ $seller->id }}"
-                                        {{ request('user_id') == $seller->id ? 'selected' : '' }}>
-                                        {{ $seller->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
+                {{-- 🔹 Action (trái) + Filter (phải) trên cùng một hàng, không responsive --}}
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-nowrap">
+                    {{-- Action buttons --}}
+                    <div class="d-flex align-items-center gap-2 flex-nowrap">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.createLabel') }}">
+                            <i class="bi bi-printer"></i> Create Label
+                        </a>
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.getLabel') }}">
+                            <i class="bi bi-printer"></i> Get Label
+                        </a>
+                        <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-success px-3 text-nowrap">
+                                <i class="bi bi-download"></i> Export Selected
+                            </button>
+                        </form>
+                    </div>
 
-                    <div class="col-12 col-sm-6 col-md-4 col-lg-2">
-                        <select name="shop_name" class="form-select">
-                            <option value="">-- All Shops --</option>
-                            @foreach ($shopNames as $shopName)
-                                <option value="{{ $shopName }}" {{ request('shop_name') == $shopName ? 'selected' : '' }}>
-                                    {{ $shopName }}
+                    {{-- Filter --}}
+                    <form method="GET" action="{{ route('orders.index') }}" id="filterForm"
+                        class="d-flex gap-2 flex-nowrap align-items-center">
+                        @if ($isAdmin && count($sellers) > 0)
+                        <select name="user_id" class="form-select" style="width: 160px;">
+                            <option value="">-- All Sellers --</option>
+                            <option value="Unassigned" {{ request('user_id') === 'Unassigned' ? 'selected' : '' }}>
+                                Unassigned</option>
+                            @foreach ($sellers as $seller)
+                                <option value="{{ $seller->id }}"
+                                    {{ request('user_id') == $seller->id ? 'selected' : '' }}>
+                                    {{ $seller->name }}
                                 </option>
                             @endforeach
                         </select>
+                    @endif
+
+                    <select name="shop_name" class="form-select" style="width: 160px;">
+                        <option value="">-- All Shops --</option>
+                        @foreach ($shops as $shop)
+                            <option value="{{ $shop['value'] }}"
+                                {{ request('shop_name') == $shop['value'] ? 'selected' : '' }}>
+                                {{ $shop['label'] }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <div class="input-group flatpickr position-relative" style="width: 150px;">
+                        <input type="text" class="form-control ps-5 datepicker" name="date_start"
+                            value="{{ request('date_start') }}" placeholder="Start Date">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
+                            <i class="fas fa-calendar-alt"></i>
+                        </span>
                     </div>
 
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="input-group flatpickr position-relative">
-                            <input type="text" class="form-control ps-5 datepicker" name="date_start"
-                                value="{{ request('date_start') }}" placeholder="Start Date">
-                            <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
-                                <i class="fas fa-calendar-alt"></i>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-4 col-lg-2">
-                        <div class="input-group flatpickr position-relative">
-                            <input type="text" class="form-control ps-5 datepicker" name="date_end"
-                                value="{{ request('date_end') }}" placeholder="End Date">
-                            <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
-                                <i class="fas fa-calendar-alt"></i>
-                            </span>
-                        </div>
+                    <div class="input-group flatpickr position-relative" style="width: 150px;">
+                        <input type="text" class="form-control ps-5 datepicker" name="date_end"
+                            value="{{ request('date_end') }}" placeholder="End Date">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
+                            <i class="fas fa-calendar-alt"></i>
+                        </span>
                     </div>
 
-                    <div class="col-12 col-sm-8 col-md-6 col-lg-3">
-                        <input type="text" name="search" value="{{ request('search') }}" class="form-control"
-                            placeholder="🔍 Search name, order ID, tracking...">
-                    </div>
+                    <input type="text" name="search" value="{{ request('search') }}" class="form-control"
+                        style="width: 220px;" placeholder="🔍 Search name, order ID, tracking...">
 
-                    <div class="col-12 col-sm-4 col-md-2 col-lg-auto d-flex gap-2">
-                        <button class="btn btn-outline-secondary flex-fill" type="submit">
-                            <i class="fas fa-search"></i>
-                        </button>
-                        <button type="button" class="btn btn-danger flex-fill" onclick="resetFilters()"
-                            title="Reset filters">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </form>
-
-                {{-- 🔹 Action buttons (giữ Export, bỏ Import) --}}
-                <div class="d-flex align-items-center gap-2 flex-wrap pt-3">
-                    <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.createLabel') }}">
-                        <i class="bi bi-printer"></i> Create Label
-                    </a>
-                    <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.getLabel') }}">
-                        <i class="bi bi-printer"></i> Get Label
-                    </a>
-
-                    <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
-                        @csrf
-                        <button type="submit" class="btn btn-success px-3">
-                            <i class="bi bi-download"></i> Export Selected
-                        </button>
+                    <button class="btn btn-outline-secondary text-nowrap" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button type="button" class="btn btn-danger text-nowrap" onclick="resetFilters()"
+                        title="Reset filters">
+                        <i class="fas fa-times"></i>
+                    </button>
                     </form>
                 </div>
             </div>

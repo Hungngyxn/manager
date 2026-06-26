@@ -10,58 +10,52 @@
         {{-- 🔹 Filters --}}
         <div class="card shadow-sm mb-3 border-0">
             <div class="card-body py-3">
-                <div class="row align-items-center g-2">
-                    {{-- Export + Label --}}
-                    <div class="col-md-4 d-flex gap-2">
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-nowrap">
+                    {{-- Export + Label (trái) --}}
+                    <div class="d-flex gap-2 flex-nowrap">
                         <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
                             @csrf
-                            <button type="submit" class="btn btn-success px-3">
+                            <button type="submit" class="btn btn-success px-3 text-nowrap">
                                 <i class="bi bi-download"></i> Export Selected
                             </button>
                         </form>
 
-                        <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.createLabel') }}">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.createLabel') }}">
                             <i class="bi bi-printer"></i> Create Label
                         </a>
 
-                        <a class="btn btn-outline-primary px-3 btn-label-sync" href="{{ route('shopus.getLabel') }}">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.getLabel') }}">
                             <i class="bi bi-printer"></i> Get Label
                         </a>
                     </div>
 
-                    {{-- Form Filter --}}
-                    <div class="col-md-8">
-                        <form method="GET" action="{{ route('shopus.index') }}" class="row g-2 align-items-center">
-                            <div class="col-md-4">
-                                <input type="text" name="search" class="form-control"
-                                    placeholder="🔍 Search by name, phone, or order ID" value="{{ request('search') }}">
-                            </div>
+                    {{-- Form Filter (căn phải, không responsive) --}}
+                    <form method="GET" action="{{ route('shopus.index') }}"
+                        class="d-flex gap-2 flex-nowrap align-items-center ms-auto">
+                        <input type="text" name="search" class="form-control" style="width: 240px;"
+                            placeholder="🔍 Search by name, phone, or order ID" value="{{ request('search') }}">
 
-                            <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                    <input type="text" id="date" name="date" class="form-control"
-                                        placeholder="Select date" value="{{ request('date') }}">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select name="shop" class="form-select">
-                                    <option value="">-- Filter by Shop --</option>
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop }}"
-                                            {{ request('shop') == $shop ? 'selected' : '' }}>
-                                            {{ $shop }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div class="input-group flex-nowrap" style="width: 180px;">
+                            <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                            <input type="text" id="date" name="date" class="form-control" placeholder="Select date"
+                                value="{{ request('date') }}">
+                        </div>
 
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i>
-                                    Filter</button>
-                            </div>
-                        </form>
-                    </div>
+                        <select name="shop" class="form-select" style="width: 180px;">
+                            <option value="">-- Filter by Shop --</option>
+                            @foreach ($shops as $shop)
+                                <option value="{{ $shop['value'] }}"
+                                    {{ request('shop') == $shop['value'] ? 'selected' : '' }}>
+                                    {{ $shop['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <button type="submit" class="btn btn-primary text-nowrap"><i class="bi bi-funnel"></i>
+                            Filter</button>
+                    </form>
                 </div>
             </div>
         </div>

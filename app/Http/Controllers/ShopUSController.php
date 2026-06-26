@@ -76,7 +76,14 @@ class ShopUsController extends Controller
 		if (!$isAdmin) {
 			$shopsQuery->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
-		$shops = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
+		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
+
+		// shop_us.shop_code lưu shop_name -> map sang shop_code thật (seller_has_shop) để hiển thị.
+		$codeByName = SellerHasShop::whereIn('shop_name', $shopNames)->pluck('shop_code', 'shop_name');
+		$shops = $shopNames->map(fn ($name) => [
+			'value' => $name,                       // lọc theo shop_us.shop_code (=shop_name)
+			'label' => $codeByName[$name] ?? $name, // hiển thị shop_code thật, fallback tên shop
+		]);
 
 		return view('pages.shopus.shopus', compact('orders', 'ordercount', 'shops'));
 	}
@@ -164,7 +171,14 @@ class ShopUsController extends Controller
 		}
 		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
 
-		return view('pages.shopus.board', compact('orders', 'ordercount', 'sellers', 'shopNames', 'isAdmin'));
+		// shop_us.shop_code lưu shop_name -> map sang shop_code thật (seller_has_shop) để hiển thị.
+		$codeByName = SellerHasShop::whereIn('shop_name', $shopNames)->pluck('shop_code', 'shop_name');
+		$shops = $shopNames->map(fn ($name) => [
+			'value' => $name,                       // lọc theo shop_us.shop_code (=shop_name)
+			'label' => $codeByName[$name] ?? $name, // hiển thị shop_code thật, fallback tên shop
+		]);
+
+		return view('pages.shopus.board', compact('orders', 'ordercount', 'sellers', 'shops', 'isAdmin'));
 	}
 
 	/**
@@ -321,7 +335,7 @@ class ShopUsController extends Controller
 							['order_id' => $orderId],
 							[
 								'order_id' => $orderId,
-								'shop_code' => $shop->shop_name,
+								'shop_code' => $shop->shop_code,
 								'customer_name' => $recipient['name'] ?? '',
 								'customer_phone' => $recipient['phone_number'] ?? '',
 								'customer_address' => $recipient['address_detail'] ?? '',
