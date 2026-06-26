@@ -35,11 +35,11 @@ class ShopUs extends Model
 
     /**
      * shop_us KHÔNG có user_id. Liên kết qua seller_has_shop:
-     * shop_us.shop_code (lưu shop_name) = seller_has_shop.shop_name.
+     * shop_us.shop_code = seller_has_shop.shop_code.
      */
     public function shop()
     {
-        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_name');
+        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
     }
 
     /**
@@ -50,7 +50,7 @@ class ShopUs extends Model
         return $this->hasOneThrough(
             User::class,
             SellerHasShop::class,
-            'shop_name', // FK trên seller_has_shop khớp local key của shop_us
+            'shop_code', // FK trên seller_has_shop khớp local key của shop_us
             'id',        // PK trên users
             'shop_code', // local key trên shop_us
             'user_id'    // local key trên seller_has_shop -> users.id

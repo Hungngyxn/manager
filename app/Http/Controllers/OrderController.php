@@ -66,9 +66,9 @@ class OrderController extends Controller
 
 	public function index(Request $request)
 	{
-		// Nội dung trang /orders giờ là bảng ShopUS (board) — xem ShopUsController@board.
+		// Nội dung trang /orders là bảng ShopUS — xem ShopUsController@index.
 		// Code listing order cũ được giữ ở indexLegacy() để có thể khôi phục.
-		return app(ShopUsController::class)->board($request);
+		return app(ShopUsController::class)->index($request);
 	}
 
 	public function indexLegacy(Request $request)

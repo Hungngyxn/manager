@@ -36,77 +36,6 @@ class ShopUsController extends Controller
 		$isAdmin = (int) optional($user->role)->is_super_user === 1;
 		$perPage = $request->get('perPage', 10);
 
-		$query = ShopUs::query();
-
-		// Phân quyền: admin xem tất cả; user thường chỉ xem shop mình sở hữu.
-		if (!$isAdmin) {
-			$query->whereIn('shop_code', $this->ownedShopCodes($user->id));
-		}
-
-		if ($request->filled('search')) {
-			$search = $request->search;
-			$query->where(function ($q) use ($search) {
-				$q->where('order_id', 'like', "%{$search}%")
-					->orWhere('customer_name', 'like', "%{$search}%")
-					->orWhere('shop_code', 'like', "%{$search}%")
-					->orWhere('tracking_number', 'like', "%{$search}%");
-			});
-		}
-
-		if ($request->filled('shop')) {
-			$query->where('shop_code', $request->shop);
-		}
-
-		if ($request->filled('status')) {
-			$query->where('status', $request->status);
-		}
-
-		if ($request->filled('date')) {
-			$query->whereDate('created_at', $request->date);
-		}
-
-		$ordercount = (clone $query)->count();
-
-		$orders = $query->latest()
-			->paginate($perPage)
-			->appends($request->only(['search', 'shop', 'status', 'date', 'perPage']));
-
-		// Danh sách shop để lọc (giới hạn theo quyền)
-		$shopsQuery = ShopUs::query();
-		if (!$isAdmin) {
-			$shopsQuery->whereIn('shop_code', $this->ownedShopCodes($user->id));
-		}
-		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
-
-		// shop_us.shop_code lưu shop_name -> map sang shop_code thật (seller_has_shop) để hiển thị.
-		$codeByName = SellerHasShop::whereIn('shop_name', $shopNames)->pluck('shop_code', 'shop_name');
-		$shops = $shopNames->map(fn ($name) => [
-			'value' => $name,                       // lọc theo shop_us.shop_code (=shop_name)
-			'label' => $codeByName[$name] ?? $name, // hiển thị shop_code thật, fallback tên shop
-		]);
-
-		return view('pages.shopus.shopus', compact('orders', 'ordercount', 'shops'));
-	}
-
-	/**
-	 * Subquery danh sách shop_name một user sở hữu (qua seller_has_shop).
-	 */
-	private function ownedShopCodes($userId)
-	{
-		return function ($q) use ($userId) {
-			$q->select('shop_name')->from('seller_has_shop')->where('user_id', $userId);
-		};
-	}
-
-	/**
-	 * Trang orders: filter (seller / shop / ngày / search) + bảng item ShopUS.
-	 */
-	public function board(Request $request)
-	{
-		$user = auth()->user();
-		$isAdmin = (int) optional($user->role)->is_super_user === 1;
-		$perPage = $request->get('perPage', 10);
-
 		$query = ShopUs::query()->with('seller');
 
 		// Phân quyền: user thường chỉ thấy đơn của shop mình sở hữu (join seller_has_shop)
@@ -119,14 +48,14 @@ class ShopUsController extends Controller
 			if ($request->user_id === 'Unassigned') {
 				// Đơn của shop chưa được gán seller nào
 				$query->whereNotIn('shop_code', function ($q) {
-					$q->select('shop_name')->from('seller_has_shop')->whereNotNull('user_id');
+					$q->select('shop_code')->from('seller_has_shop')->whereNotNull('user_id');
 				});
 			} else {
 				$query->whereIn('shop_code', $this->ownedShopCodes($request->user_id));
 			}
 		}
 
-		// All Shops: shop_us.shop_code lưu shop_name
+		// All Shops: lọc theo shop_us.shop_code (value dropdown là shop_code thật)
 		if ($request->filled('shop_name')) {
 			$query->where('shop_code', $request->shop_name);
 		}
@@ -158,7 +87,7 @@ class ShopUsController extends Controller
 		$sellers = collect();
 		if ($isAdmin) {
 			$sellerIds = SellerHasShop::whereNotNull('user_id')
-				->whereIn('shop_name', ShopUs::select('shop_code')->distinct())
+				->whereIn('shop_code', ShopUs::select('shop_code')->distinct())
 				->distinct()
 				->pluck('user_id');
 			$sellers = User::whereIn('id', $sellerIds)->select('id', 'name')->orderBy('name')->get();
@@ -169,16 +98,26 @@ class ShopUsController extends Controller
 		if (!$isAdmin) {
 			$shopsQuery->whereIn('shop_code', $this->ownedShopCodes($user->id));
 		}
-		$shopNames = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
+		$shopCodes = $shopsQuery->select('shop_code')->distinct()->pluck('shop_code');
 
-		// shop_us.shop_code lưu shop_name -> map sang shop_code thật (seller_has_shop) để hiển thị.
-		$codeByName = SellerHasShop::whereIn('shop_name', $shopNames)->pluck('shop_code', 'shop_name');
-		$shops = $shopNames->map(fn ($name) => [
-			'value' => $name,                       // lọc theo shop_us.shop_code (=shop_name)
-			'label' => $codeByName[$name] ?? $name, // hiển thị shop_code thật, fallback tên shop
+		// shop_us.shop_code là shop_code thật -> map sang shop_name (seller_has_shop) để hiển thị.
+		$nameByCode = SellerHasShop::whereIn('shop_code', $shopCodes)->pluck('shop_name', 'shop_code');
+		$shops = $shopCodes->map(fn ($code) => [
+			'value' => $code,                       // lọc theo shop_us.shop_code (=shop_code thật)
+			'label' => $nameByCode[$code] ?? $code, // hiển thị shop_name, fallback chính code
 		]);
 
-		return view('pages.shopus.board', compact('orders', 'ordercount', 'sellers', 'shops', 'isAdmin'));
+		return view('pages.order.index', compact('orders', 'ordercount', 'sellers', 'shops', 'isAdmin'));
+	}
+
+	/**
+	 * Subquery danh sách shop_code một user sở hữu (qua seller_has_shop).
+	 */
+	private function ownedShopCodes($userId)
+	{
+		return function ($q) use ($userId) {
+			$q->select('shop_code')->from('seller_has_shop')->where('user_id', $userId);
+		};
 	}
 
 	/**
@@ -335,7 +274,7 @@ class ShopUsController extends Controller
 							['order_id' => $orderId],
 							[
 								'order_id' => $orderId,
-								'shop_code' => $shop->shop_code,
+								'shop_code' => trim((string) $shop->shop_code),
 								'customer_name' => $recipient['name'] ?? '',
 								'customer_phone' => $recipient['phone_number'] ?? '',
 								'customer_address' => $recipient['address_detail'] ?? '',
@@ -443,7 +382,7 @@ class ShopUsController extends Controller
 		$isAdmin = (int) optional($user->role)->is_super_user === 1;
 		if (!$isAdmin) {
 			$owns = SellerHasShop::where('user_id', $user->id)
-				->where('shop_name', $order->shop_code)
+				->where('shop_code', $order->shop_code)
 				->exists();
 			if (!$owns) {
 				abort(403);
@@ -610,7 +549,7 @@ class ShopUsController extends Controller
 				$client->setAccessToken($token);
 				$client->setShopCipher($shop->shop_cipher);
 
-				$pendingOrderIds = ShopUs::where('shop_code', $shop->shop_name)
+				$pendingOrderIds = ShopUs::where('shop_code', $shop->shop_code)
 					->whereNotIn('status', ['DELIVERED', 'CANCELLED', 'COMPLETED'])
 					->pluck('order_id')
 					->toArray();
