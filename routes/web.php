@@ -150,7 +150,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     //Report
     Route::prefix('report')->name('report.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
-        Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+        Route::get('/update-ads', [ReportSellerController::class, 'initDailyReports'])->name('update');
         //seller
         Route::get('/seller', [ReportSellerController::class, 'index'])->name('seller');
 

@@ -16,9 +16,9 @@
                     {{-- Import Button & Filters --}}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
                         @canEdit
-                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importAdsModal">
-                            <i class="fas fa-file-import me-1"></i> Import Ads
-                        </button>
+                        <<a class="btn btn-outline-primary px-3" href="{{ route('report.update') }}">
+                            <i class="bi bi-printer"></i> Get Label
+                        </a>
                         @endcanEdit
 
                         <form method="GET" action="{{ route('report.seller') }}" id="filterForm"
