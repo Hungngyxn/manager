@@ -50,7 +50,7 @@ class TikTokService
                 $token->update([
                     'access_token' => $newToken['access_token'],
                     'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
-                    'expires_at' => $newToken['access_token_expire_in'],
+                    'expires_at' => now()->addSeconds($newToken['expires_in']),
                 ]);
                 return $newToken['access_token'];
             } catch (\Exception $e) {
