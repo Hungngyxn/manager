@@ -105,6 +105,7 @@
                             <th>Order ID</th>
                             <th>Customer Info</th>
                             <th>Product</th>
+                            <th>Base Cost</th>
                             <th>Tracking / Label</th>
                             <th>Status</th>
                             <th>Price</th>
@@ -207,10 +208,23 @@
                                     @endforeach
                                 </td>
 
+                                {{-- Base Cost: cost của SKU gốc × pack (N/A nếu không map được) --}}
+                                <td class="text-start align-top">
+                                    @foreach ($products as $p)
+                                        <div class="d-flex align-items-center mb-3" style="min-height:65px;">
+                                            @if (isset($p['base_cost']) && $p['base_cost'] !== null)
+                                                <span class="fw-semibold">${{ number_format($p['base_cost'], 2) }}</span>
+                                            @else
+                                                <span class="text-muted">N/A</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </td>
+
                                 <td>
                                     <div class="fw-semibold">{{ $order->tracking_number ?? '—' }}</div>
                                     @if ($order->label_link)
-                                        <a href="{{ $order->label_link }}" target="_blank"
+                                        <a href="{{ route('shopus.label.download', $order->id) }}" target="_blank"
                                             class="text-decoration-underline small text-primary">Label Link</a>
                                     @endif
                                 </td>
@@ -220,7 +234,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="py-4 text-muted">No orders found.</td>
+                                <td colspan="11" class="py-4 text-muted">No orders found.</td>
                             </tr>
                         @endforelse
                     </tbody>

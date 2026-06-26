@@ -16,7 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Log;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -275,6 +274,9 @@ class ShopUsController extends Controller
 							$sku = $parsed['sku'];
 							$qty = $parsed['quantity'];
 
+							// Base cost: tra tên SKU gốc (bỏ phần PackN) vào bảng skus, cost × pack.
+							$baseCost = $this->calcBaseCost($basesku);
+
 							if (!isset($items[$sku])) {
 								$items[$sku] = [
 									'product_name' => $item['product_name'] ?? '',
@@ -283,9 +285,13 @@ class ShopUsController extends Controller
 									'quantity' => $qty,
 									'price' => $item['original_price'] ?? 0,
 									'total_price' => $item['sale_price'] ?? 0,
+									'base_cost' => $baseCost,
 								];
 							} else {
 								$items[$sku]['quantity'] += $qty;
+								if ($baseCost !== null) {
+									$items[$sku]['base_cost'] = ($items[$sku]['base_cost'] ?? 0) + $baseCost;
+								}
 							}
 						}
 						$items = array_values($items);
@@ -366,18 +372,19 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Tải label PDF từ TikTok về local (storage/app/public/label_links) để tránh
-	 * link TikTok hết hạn. Trả về URL local, hoặc null nếu tải thất bại.
+	 * Tải label PDF từ TikTok về local để tránh link TikTok hết hạn.
+	 * Lưu vào thư mục label_links/ ngay gốc project (ngang cấp public/, storage/)
+	 * và trả về đường dẫn tương đối "label_links/{order_id}.pdf", hoặc null nếu thất bại.
 	 */
 	public function localizeLabel(?string $url, string $orderId): ?string
 	{
-		if (!$url || !str_starts_with($url, 'http')) {
+		if (!$url) {
 			return null;
 		}
 
-		// Đã là link local rồi thì không tải lại
-		if (str_contains($url, '/storage/label_links/')) {
-			return $url;
+		// Đã là đường dẫn local (label_links/...) thì giữ nguyên, không tải lại
+		if (!str_starts_with($url, 'http')) {
+			return str_contains($url, 'label_links/') ? $url : null;
 		}
 
 		try {
@@ -390,15 +397,70 @@ class ShopUsController extends Controller
 
 			// Tên file an toàn theo order_id; label TikTok là PDF
 			$safeId = preg_replace('/[^A-Za-z0-9_\-]/', '_', $orderId);
-			$path = "label_links/{$safeId}.pdf";
+			$relativePath = "label_links/{$safeId}.pdf";
+			$fullPath = base_path($relativePath);
 
-			Storage::disk('public')->put($path, $response->body());
+			// Đảm bảo thư mục label_links/ ở gốc project tồn tại
+			$dir = dirname($fullPath);
+			if (!is_dir($dir)) {
+				mkdir($dir, 0755, true);
+			}
 
-			return Storage::disk('public')->url($path);
+			file_put_contents($fullPath, $response->body());
+
+			return $relativePath;
 		} catch (\Throwable $e) {
 			Log::warning("Lỗi tải label Order {$orderId}: " . $e->getMessage());
 			return null;
 		}
+	}
+
+	/**
+	 * Phục vụ file label PDF nằm trong label_links/ ở gốc project (ngoài web docroot).
+	 * - label_link là đường dẫn local "label_links/..." -> trả file PDF (xem inline).
+	 * - label_link còn là link TikTok gốc -> redirect thẳng sang đó.
+	 */
+	public function downloadLabel($id)
+	{
+		$order = ShopUs::findOrFail($id);
+
+		// Phân quyền: user thường chỉ tải được label của shop mình sở hữu (chống IDOR).
+		$user = auth()->user();
+		$isAdmin = (int) optional($user->role)->is_super_user === 1;
+		if (!$isAdmin) {
+			$owns = SellerHasShop::where('user_id', $user->id)
+				->where('shop_name', $order->shop_code)
+				->exists();
+			if (!$owns) {
+				abort(403);
+			}
+		}
+
+		$labelLink = $order->label_link;
+
+		if (!$labelLink) {
+			abort(404);
+		}
+
+		// Chưa localize (vẫn là link ngoài) thì chuyển hướng thẳng
+		if (str_starts_with($labelLink, 'http')) {
+			return redirect()->away($labelLink);
+		}
+
+		if (!str_starts_with($labelLink, 'label_links/')) {
+			abort(404);
+		}
+
+		$fullPath = base_path($labelLink);
+		$real = realpath($fullPath);
+		$baseDir = realpath(base_path('label_links'));
+
+		// Chặn path traversal: file phải nằm trong label_links/
+		if ($real === false || $baseDir === false || !str_starts_with($real, $baseDir)) {
+			abort(404);
+		}
+
+		return response()->file($real, ['Content-Type' => 'application/pdf']);
 	}
 
 	public function parseSku(string $rawSku, int $originalQuantity): array
@@ -453,6 +515,43 @@ class ShopUsController extends Controller
 			'sku' => $rawSku,
 			'quantity' => $originalQuantity,
 		];
+	}
+
+	/**
+	 * Tính base cost của 1 item từ seller_sku dạng "Ankle_Pink_M_Pack5".
+	 * - Có hậu tố "PackN": tách tên ("Ankle_Pink_M") + số cái mỗi pack (5).
+	 * - Không có "PackN": dùng nguyên tên, pack = 1.
+	 * - Tra tên vào bảng skus theo cột sku (không phân biệt hoa thường), lấy cost.
+	 * - base_cost = cost × pack (không nhân với quantity của đơn).
+	 * Trả về null khi không tìm thấy SKU → view hiển thị N/A.
+	 */
+	public function calcBaseCost(string $rawSku): ?float
+	{
+		$rawSku = trim($rawSku);
+		if ($rawSku === '') {
+			return null;
+		}
+
+		// Mặc định không có pack: dùng nguyên tên và pack = 1.
+		$name = $rawSku;
+		$pack = 1;
+
+		// Hậu tố "PackN" ở cuối: $m[1] = tên SKU gốc, $m[2] = số cái mỗi pack.
+		if (preg_match('/^(.*?)[_\s]*pack\s*(\d+)\s*$/i', $rawSku, $m)) {
+			$name = rtrim($m[1], "_ \t");
+			$pack = max((int) $m[2], 1);
+		}
+
+		if ($name === '') {
+			return null;
+		}
+
+		$skuRow = Sku::whereRaw('LOWER(sku) = ?', [strtolower($name)])->first();
+		if (!$skuRow) {
+			return null;
+		}
+
+		return round((float) $skuRow->cost * $pack, 2);
 	}
 
 	/**
