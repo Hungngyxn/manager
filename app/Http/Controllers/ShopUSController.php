@@ -274,8 +274,8 @@ class ShopUsController extends Controller
 							$sku = $parsed['sku'];
 							$qty = $parsed['quantity'];
 
-							// Base cost: tra tên SKU gốc (bỏ phần PackN) vào bảng skus, cost × pack.
-							$baseCost = $this->calcBaseCost($basesku);
+							// Giá gốc & base cost: tra baseSku vào skus (fallback qua sku_orders).
+							$baseInfo = $this->calcBaseCost($basesku);
 
 							if (!isset($items[$sku])) {
 								$items[$sku] = [
@@ -285,12 +285,12 @@ class ShopUsController extends Controller
 									'quantity' => $qty,
 									'price' => $item['original_price'] ?? 0,
 									'total_price' => $item['sale_price'] ?? 0,
-									'base_cost' => $baseCost,
+									'base_cost' => $baseInfo['base_cost'] ?? null,
 								];
 							} else {
 								$items[$sku]['quantity'] += $qty;
-								if ($baseCost !== null) {
-									$items[$sku]['base_cost'] = ($items[$sku]['base_cost'] ?? 0) + $baseCost;
+								if ($baseInfo !== null) {
+									$items[$sku]['base_cost'] = ($items[$sku]['base_cost'] ?? 0) + $baseInfo['base_cost'];
 								}
 							}
 						}
@@ -518,40 +518,50 @@ class ShopUsController extends Controller
 	}
 
 	/**
-	 * Tính base cost của 1 item từ seller_sku dạng "Ankle_Pink_M_Pack5".
-	 * - Có hậu tố "PackN": tách tên ("Ankle_Pink_M") + số cái mỗi pack (5).
-	 * - Không có "PackN": dùng nguyên tên, pack = 1.
-	 * - Tra tên vào bảng skus theo cột sku (không phân biệt hoa thường), lấy cost.
-	 * - base_cost = cost × pack (không nhân với quantity của đơn).
-	 * Trả về null khi không tìm thấy SKU → view hiển thị N/A.
+	 * Lấy thông tin giá gốc của 1 item từ seller_sku (KHÔNG parse chuỗi).
+	 * Trả về ['price' => ..., 'base_cost' => ...], hoặc null nếu không map được → view hiển thị N/A.
+	 *
+	 * 1) Tra thẳng baseSku vào bảng skus. Có dòng sku = baseSku → lấy luôn price & cost (quantity = 1).
+	 * 2) Không có → tra baseSku vào sku_orders theo warehouse_name, copy sku + quantity_per_pack của dòng đó.
+	 *    Cầm sku vừa copy tra lại vào skus, lấy price & cost rồi nhân cả hai với quantity_per_pack.
 	 */
-	public function calcBaseCost(string $rawSku): ?float
+	public function calcBaseCost(string $rawSku): ?array
 	{
 		$rawSku = trim($rawSku);
 		if ($rawSku === '') {
 			return null;
 		}
 
-		// Mặc định không có pack: dùng nguyên tên và pack = 1.
-		$name = $rawSku;
-		$pack = 1;
-
-		// Hậu tố "PackN" ở cuối: $m[1] = tên SKU gốc, $m[2] = số cái mỗi pack.
-		if (preg_match('/^(.*?)[_\s]*pack\s*(\d+)\s*$/i', $rawSku, $m)) {
-			$name = rtrim($m[1], "_ \t");
-			$pack = max((int) $m[2], 1);
+		// 1) Tra thẳng baseSku vào skus
+		$skuRow = Sku::whereRaw('LOWER(sku) = ?', [strtolower($rawSku)])->first();
+		if ($skuRow) {
+			return [
+				'price' => round((float) $skuRow->price, 2),
+				'base_cost' => round((float) $skuRow->cost, 2),
+			];
 		}
 
-		if ($name === '') {
+		// 2) Không có → qua sku_orders (warehouse_name), copy sku + quantity, rồi quay lại skus
+		$skuOrder = SkuOrder::whereRaw('LOWER(warehouse_name) = ?', [strtolower($rawSku)])->first();
+		if (!$skuOrder) {
 			return null;
 		}
 
-		$skuRow = Sku::whereRaw('LOWER(sku) = ?', [strtolower($name)])->first();
+		$mappedSku = trim((string) $skuOrder->sku);
+		$quantity = max((int) $skuOrder->quantity_per_pack, 1);
+		if ($mappedSku === '') {
+			return null;
+		}
+
+		$skuRow = Sku::whereRaw('LOWER(sku) = ?', [strtolower($mappedSku)])->first();
 		if (!$skuRow) {
 			return null;
 		}
 
-		return round((float) $skuRow->cost * $pack, 2);
+		return [
+			'price' => round((float) $skuRow->price * $quantity, 2),
+			'base_cost' => round((float) $skuRow->cost * $quantity, 2),
+		];
 	}
 
 	/**
