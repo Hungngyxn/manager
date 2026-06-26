@@ -4,7 +4,7 @@
     <div class="container-fluid mt-2 px-4">
         <div class="row">
             <div class="col-12">
-                <h4 class="font-weight-bold">Report</h4>
+                <h4 class="font-weight-bold">Reports > sellers</h4>
                 <hr>
             </div>
         </div>
@@ -21,7 +21,7 @@
                         </button>
                         @endcanEdit
 
-                        <form method="GET" action="{{ route('report.index') }}" id="filterForm"
+                        <form method="GET" action="{{ route('report.seller') }}" id="filterForm"
                             class="d-flex align-items-center gap-2 ms-auto">
                             @if (auth()->user()->role->name !== 'Seller')
                                 <select name="user_id" class="form-select px-3 py-2 select2">

@@ -1,14 +1,19 @@
 <?php
 
 use App\Http\Controllers\AdsFeeController;
+use App\Http\Controllers\BonusController;
 use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
-use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ProductListController;
+use App\Http\Controllers\Report\ReportController;
+use App\Http\Controllers\Report\ReportSellerController;
 use App\Http\Controllers\SellerHasShopController;
 use App\Http\Controllers\ShopAccountController;
+use App\Http\Controllers\ShopUsController;
 use App\Http\Controllers\SkuController;
 use App\Http\Controllers\SkuOrderController;
 use App\Http\Controllers\TeamsController;
+use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfilesController;
@@ -109,6 +114,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
         Route::get('/{shop}/edit', [SellerHasShopController::class, 'edit'])->name('edit');
         Route::post('/import', [SellerHasShopController::class, 'importShop'])->name('import');
+        Route::get('/exportBalance', [SellerHasShopController::class, 'exportBalance'])->name('exportBalance');
     });
 
     // Sku
@@ -145,6 +151,9 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     Route::prefix('report')->name('report.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+        //seller
+        Route::get('/seller', [ReportSellerController::class, 'index'])->name('seller');
+
     });
 
     Route::prefix('shop-accounts')->name('shop-accounts.')->group(function () {
@@ -158,14 +167,37 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/batch-assign', [ShopAccountController::class, 'batchAssign'])->name('batch-assign');
     });
 
+    Route::prefix('shopus')->name('shopus.')->group(function () {
+        Route::get('/', [ShopUsController::class, 'index'])->name('index');
+        Route::post('/update', [ShopUsController::class, 'update'])->name('update');
+        Route::get('/create-label', [ShopUsController::class, 'syncOrdersWithLabel'])->name('createLabel');
+        Route::get('/get-label', [ShopUsController::class, 'syncPendingOrdersStatus'])->name('getLabel');
+        Route::post('/export-selected', [ShopUsController::class, 'exportSelected'])
+            ->name('export.selected');
+    });
+
     Route::prefix('log')->name('log.')->group(function () {
         Route::get('/', [ErrorLogController::class, 'index'])->name('index');
         Route::get('/create', [ErrorLogController::class, 'create'])->name('create');
         Route::post('/', [ErrorLogController::class, 'store'])->name('store');
     });
 
+    Route::prefix('bonus')->name('bonus.')->group(function () {
+        Route::get('/', [BonusController::class, 'index'])->name('index');
+    });
+
     Route::post('/ads-fee', [AdsFeeController::class, 'store'])->name('ads-fee.store');
     Route::get('/ads-fee/fetch', [AdsFeeController::class, 'fetch'])->name('ads-fee.fetch');
     Route::post('/ads-fee/import', [AdsFeeController::class, 'import'])->name('ads-fee.import');
 
+    Route::post('/product-mapping/import', [ProductListController::class, 'import'])->name('product-mapping.import');
+
+    Route::prefix('track')->name('track.')->group(function () {
+        Route::get('/', [TrackingController::class, 'index'])->name('index');
+        Route::get('/create', [TrackingController::class, 'create'])->name('create');
+        Route::post('/', [TrackingController::class, 'store'])->name('store');
+        Route::delete('/{id}', [TrackingController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/sync', [TrackingController::class, 'syncOrder'])->name('sync');
+        Route::post('/syncAll', [TrackingController::class, 'syncAllOrders'])->name('syncAll');
+    });
 });

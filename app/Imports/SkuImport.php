@@ -29,6 +29,7 @@ class SkuImport implements ToCollection, WithHeadingRow
 
             try {
                 $skuCode = trim($row['sku'] ?? '');
+                $product_name = $skuCode;
                 $rawCost = $row['base_cost'] ?? null;
                 $rawQuantity = $row['so_luong_ton_kho'] ?? null;
                 $skuName = $row['mat_hang'] ?? null;
@@ -57,8 +58,8 @@ class SkuImport implements ToCollection, WithHeadingRow
                 $cost = floatval($costStr);
 
                 // ✅ Handle special tier case for "SP Research mới"
-                if (strtolower(trim($tierRaw)) === 'sp research mới') {
-                    $tierName = 'Tier 3';
+                if (strtolower(trim($tierRaw)) === 'sp research mới' || strtolower(trim($tierRaw)) === 'tpcn') {
+                    $tierName = 'Tier 1';
                 } else {
                     $tierName = trim(preg_replace('/\s*\(.*/', '', $tierRaw));
                 }
@@ -82,6 +83,7 @@ class SkuImport implements ToCollection, WithHeadingRow
                         'cost' => $cost,
                         'name' => $skuName,
                         'quantity' => $quantity,
+                        'product_name' => $product_name,
                         'price' => $price,
                         'freeshipping' => !empty($freeshipping) ? 1 : 0,
                         'tier' => $tierName,
@@ -93,6 +95,7 @@ class SkuImport implements ToCollection, WithHeadingRow
                         'sku' => strtolower($skuCode),
                         'cost' => $cost,
                         'name' => $skuName,
+                        'product_name' => $product_name,
                         'quantity' => $quantity,
                         'price' => $price,
                         'freeshipping' => !empty($freeshipping) ? 1 : 0,

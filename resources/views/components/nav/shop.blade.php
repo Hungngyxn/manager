@@ -1,7 +1,7 @@
 @php
-$shopActive = request()->routeIs('shop.*') || request()->routeIs('shop-accounts.*');
-$isAllShop = request()->routeIs('shop.index');
-$isAccountTTS = request()->routeIs('shop-accounts.*');
+    $shopActive = request()->routeIs('shop.*') || request()->routeIs('shop-accounts.*');
+    $isAllShop = request()->routeIs('shop.index');
+    $isAccountTTS = request()->routeIs('shop-accounts.*');
 @endphp
 @if (auth()->user()->role->is_super_user === 1)
     <a href="#shopSubmenu" data-bs-toggle="collapse"
@@ -18,6 +18,9 @@ $isAccountTTS = request()->routeIs('shop-accounts.*');
         </li>
         <li class="nav-item">
             <a href="{{ route('shop-accounts.index') }}">Account TTS</a>
+        </li>
+        <li class="nav-item">
+            <a href="{{ route('shopus.index') }}">Shop US</a>
         </li>
     </ul>
 @else

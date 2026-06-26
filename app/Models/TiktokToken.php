@@ -16,6 +16,4 @@ class TiktokToken extends Model
         'refresh_token',
         'expires_at',
     ];
-
-    protected $dates = ['expires_at'];
 }

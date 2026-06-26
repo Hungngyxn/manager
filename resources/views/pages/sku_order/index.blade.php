@@ -93,7 +93,7 @@
                                 @endforeach
                             </tbody>
                         </table>
-                        {{ $skuOrders->links() }}
+                        {{ $skuOrders->appends(request()->only(['search']))->links() }}
                     </div>
                 </div>
             </div>

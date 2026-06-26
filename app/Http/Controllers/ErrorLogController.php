@@ -10,8 +10,6 @@ class ErrorLogController extends Controller
 {
     public function index(Request $request)
     {
-
-
         $query = ErrorLog::with(['order', 'user']);
         $sellers = User::all();
 
