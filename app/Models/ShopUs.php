@@ -38,4 +38,27 @@ class ShopUs extends Model
         // Liên kết ngược về bảng seller_has_shop qua cột shop_code
         return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
     }
+    /**
+     * shop_us KHÔNG có user_id. Liên kết qua seller_has_shop:
+     * shop_us.shop_code = seller_has_shop.shop_code.
+     */
+    public function shop()
+    {
+        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
+    }
+
+    /**
+     * Seller sở hữu đơn, suy ra qua seller_has_shop.user_id.
+     */
+    public function seller()
+    {
+        return $this->hasOneThrough(
+            User::class,
+            SellerHasShop::class,
+            'shop_code', // FK trên seller_has_shop khớp local key của shop_us
+            'id',        // PK trên users
+            'shop_code', // local key trên shop_us
+            'user_id'    // local key trên seller_has_shop -> users.id
+        );
+    }
 }

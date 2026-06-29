@@ -10,58 +10,52 @@
         {{-- 🔹 Filters --}}
         <div class="card shadow-sm mb-3 border-0">
             <div class="card-body py-3">
-                <div class="row align-items-center g-2">
-                    {{-- Export + Label --}}
-                    <div class="col-md-4 d-flex gap-2">
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-nowrap">
+                    {{-- Export + Label (trái) --}}
+                    <div class="d-flex gap-2 flex-nowrap">
                         <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
                             @csrf
-                            <button type="submit" class="btn btn-success px-3">
+                            <button type="submit" class="btn btn-success px-3 text-nowrap">
                                 <i class="bi bi-download"></i> Export Selected
                             </button>
                         </form>
 
-                        <a class="btn btn-outline-primary px-3" href="{{ route('shopus.createLabel') }}">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.createLabel') }}">
                             <i class="bi bi-printer"></i> Create Label
                         </a>
 
-                        <a class="btn btn-outline-primary px-3" href="{{ route('shopus.getLabel') }}">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.getLabel') }}">
                             <i class="bi bi-printer"></i> Get Label
                         </a>
                     </div>
 
-                    {{-- Form Filter --}}
-                    <div class="col-md-8">
-                        <form method="GET" action="{{ route('shopus.index') }}" class="row g-2 align-items-center">
-                            <div class="col-md-4">
-                                <input type="text" name="search" class="form-control"
-                                    placeholder="🔍 Search by name, phone, or order ID" value="{{ request('search') }}">
-                            </div>
+                    {{-- Form Filter (căn phải, không responsive) --}}
+                    <form method="GET" action="{{ route('shopus.index') }}"
+                        class="d-flex gap-2 flex-nowrap align-items-center ms-auto">
+                        <input type="text" name="search" class="form-control" style="width: 240px;"
+                            placeholder="🔍 Search by name, phone, or order ID" value="{{ request('search') }}">
 
-                            <div class="col-md-3">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                    <input type="text" id="date" name="date" class="form-control"
-                                        placeholder="Select date" value="{{ request('date') }}">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select name="shop" class="form-select">
-                                    <option value="">-- Filter by Shop --</option>
-                                    @foreach ($shops as $shop)
-                                        <option value="{{ $shop }}"
-                                            {{ request('shop') == $shop ? 'selected' : '' }}>
-                                            {{ $shop }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                        <div class="input-group flex-nowrap" style="width: 180px;">
+                            <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                            <input type="text" id="date" name="date" class="form-control" placeholder="Select date"
+                                value="{{ request('date') }}">
+                        </div>
 
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i>
-                                    Filter</button>
-                            </div>
-                        </form>
-                    </div>
+                        <select name="shop" class="form-select" style="width: 180px;">
+                            <option value="">-- Filter by Shop --</option>
+                            @foreach ($shops as $shop)
+                                <option value="{{ $shop['value'] }}"
+                                    {{ request('shop') == $shop['value'] ? 'selected' : '' }}>
+                                    {{ $shop['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <button type="submit" class="btn btn-primary text-nowrap"><i class="bi bi-funnel"></i>
+                            Filter</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -78,6 +72,7 @@
                             <th>Order ID</th>
                             <th>Customer Info</th>
                             <th>Product</th>
+                            <th>Base Cost</th>
                             <th>Tracking / Label</th>
                             <th>Status</th>
                             <th>Price</th>
@@ -177,10 +172,23 @@
                                     @endforeach
                                 </td>
 
+                                {{-- Base Cost: cost của SKU gốc × pack (N/A nếu không map được) --}}
+                                <td class="text-start align-top">
+                                    @foreach ($products as $p)
+                                        <div class="d-flex align-items-center mb-3" style="min-height:65px;">
+                                            @if (isset($p['base_cost']) && $p['base_cost'] !== null)
+                                                <span class="fw-semibold">${{ number_format($p['base_cost'], 2) }}</span>
+                                            @else
+                                                <span class="text-muted">N/A</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </td>
+
                                 <td>
                                     <div class="fw-semibold">{{ $order->tracking_number ?? '—' }}</div>
                                     @if ($order->label_link)
-                                        <a href="{{ $order->label_link }}" target="_blank"
+                                        <a href="{{ route('shopus.label.download', $order->id) }}" target="_blank"
                                             class="text-decoration-underline small text-primary">Label Link</a>
                                     @endif
                                 </td>
@@ -190,12 +198,30 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="py-4 text-muted">No orders found.</td>
+                                <td colspan="10" class="py-4 text-muted">No orders found.</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </form>
+        </div>
+
+        {{-- 🔹 Pagination + PerPage --}}
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+            <form method="GET" action="{{ route('shopus.index') }}" class="d-flex align-items-center">
+                @foreach (request()->except('perPage', 'page') as $key => $value)
+                    <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                @endforeach
+                <select name="perPage" class="form-select" onchange="this.form.submit()">
+                    @foreach ([10, 20, 50, 100] as $size)
+                        <option value="{{ $size }}" {{ request('perPage', 10) == $size ? 'selected' : '' }}>
+                            {{ $size }}</option>
+                    @endforeach
+                </select>
+            </form>
+            <div>
+                {{ $orders->links() }}
+            </div>
         </div>
     </div>
 
@@ -260,6 +286,32 @@
     @push('scripts')
         <script>
             document.addEventListener('DOMContentLoaded', () => {
+                // 🔔 Flash message (toast)
+                @if (session('status') || session('success') || session('error'))
+                    @php $flashIsError = (bool) session('error'); @endphp
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: '{{ $flashIsError ? 'error' : 'success' }}',
+                            title: @json(session('error') ?? session('status') ?? session('success')),
+                            showConfirmButton: false,
+                            timer: 4000,
+                            timerProgressBar: true,
+                        });
+                    }
+                @endif
+
+                // ⏳ Phản hồi tức thì khi bấm Create Label / Get Label (việc chạy ở nền)
+                document.querySelectorAll('.btn-label-sync').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        this.classList.add('disabled');
+                        this.setAttribute('aria-disabled', 'true');
+                        this.innerHTML =
+                            '<span class="spinner-border spinner-border-sm"></span> Processing...';
+                    });
+                });
+
                 // Checkbox Select All
                 const checkAll = document.getElementById('checkAll');
                 checkAll?.addEventListener('click', e => {

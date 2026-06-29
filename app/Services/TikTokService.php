@@ -11,7 +11,6 @@ use App\Models\SellerHasShop;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class TikTokService
 {
@@ -25,10 +24,7 @@ class TikTokService
 
     public function authorizeUrl(): string
     {
-        $redirectUri = urlencode(config('tiktokshop.redirect_uri'));
-        $state = session('tiktok_state') ?? Str::random(40);
-
-        return "https://developer.sellersprint.com/open/authorize?key=0J8CJNYBtfLdRBjickYSGA%3D%3D";
+        return config('tiktokshop.authorize_url');
     }
 
     public function getAccessToken($shop): string
@@ -179,7 +175,7 @@ class TikTokService
             ];
 
             $body = [
-                'order_status' => 'AWAITING_SHIPMENT',
+                'order_status' => 'AWAITING_COLLECTION',
             ];
 
             if ($pageToken) {
