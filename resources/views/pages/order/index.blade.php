@@ -133,6 +133,7 @@
                                                         'order_id' => $order->order_id,
                                                         'label_link' => $order->label_link ?? '',
                                                         'products' => $modalProducts,
+                                                        'print' => $order->print ?? null,
                                                     ];
                                                 @endphp
                                                 <button type="button" class="dropdown-item btn-send-printer"
@@ -276,7 +277,7 @@
                         <div class="mb-2">
                             <label class="form-label small fw-semibold text-muted mb-0"
                                 style="font-size:0.75rem;">Shipment:</label>
-                            <select name="products[${index}][shipment]" class="form-select form-select-sm">
+                            <select id="modalShipment" name="shipment" class="form-select form-select-sm">
                                 <option value="Standard">Standard</option>
                                 <option value="Rush Product">Rush Product</option>
                                 <option value="Expedite Tiktok">Expedite Tiktok</option>
@@ -388,10 +389,21 @@
                         const button = event.relatedTarget;
                         const orderData = JSON.parse(button.getAttribute('data-order'));
 
-                        printModal.querySelector('#modalShippingLabel').value = orderData.label_link || '';
+                        // Escape giá trị đưa vào thuộc tính HTML value="..."
+                        const escAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+                        const print = orderData.print || {};
+
+                        // Order-level: nạp lại giá trị đã lưu (fallback label_link cho shipping url).
+                        printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url || orderData
+                            .label_link || '';
+                        const printerEl = printModal.querySelector('#modalPrinter');
+                        if (printerEl) printerEl.value = print.printer || '';
+                        const shipmentEl = printModal.querySelector('#modalShipment');
+                        if (shipmentEl && print.shipment) shipmentEl.value = print.shipment;
 
                         const form = printModal.querySelector('#printInfoForm');
-                        form.action = `/admin/orders/${orderData.order_id}/save-print-info`;
+                        form.action = `{{ url('orders') }}/${encodeURIComponent(orderData.order_id)}/save-print-info`;
 
                         const container = printModal.querySelector('#modalProductsContainer');
                         container.innerHTML = '';
@@ -407,6 +419,10 @@
                             const pSku = product.sku || 'N/A';
                             const pQty = product.quantity || 1;
                             const pType = product.product_type || 'Tshirt';
+                            const pDesign = product.design_url || '';
+                            const pMockup = product.mockup_url || '';
+                            const savedPositions = Array.isArray(product.print_position) ? product
+                                .print_position : null;
 
                             const positions = ['Front', 'Back', 'Neck', 'Right', 'Left', '3D',
                                 'Front Right', 'Front Left', 'Back Right', 'Back Left',
@@ -416,7 +432,9 @@
                             positions.forEach(pos => {
                                 const slug = pos.toLowerCase().replace(/ /g, '_');
                                 const inputId = `pos_${index}_${slug}`;
-                                const checked = pos === 'Front' ? 'checked' : '';
+                                // Nếu đã có dữ liệu lưu thì theo dữ liệu đó, chưa có thì mặc định "Front".
+                                const checked = (savedPositions ? savedPositions.includes(pos) : pos ===
+                                    'Front') ? 'checked' : '';
 
                                 positionsHtml += `
                                     <div class="p-0">
@@ -463,21 +481,21 @@
                                     <div class="row g-2 mb-2">
                                         <div class="col-6">
                                             <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Design URL: <span class="text-danger">*</span></label>
-                                            <input type="url" name="design_url" class="form-control form-control-sm" value="" required>
+                                            <input type="url" name="products[${index}][design_url]" class="form-control form-control-sm" value="${escAttr(pDesign)}" required>
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Mockup URL: <span class="text-danger">*</span></label>
-                                            <input type="url" name="mockup_url" class="form-control form-control-sm" value="" required>
+                                            <input type="url" name="products[${index}][mockup_url]" class="form-control form-control-sm" value="${escAttr(pMockup)}" required>
                                         </div>
                                     </div>
 
                                     <div class="mt-2 d-flex flex-column gap-1">
                                         <div class="form-check form-check-sm">
-                                            <input class="form-check-input" type="checkbox" id="specialPrint_${index}" name="products[${index}][special_print]" value="1">
+                                            <input class="form-check-input" type="checkbox" id="specialPrint_${index}" name="products[${index}][special_print]" value="1" ${product.special_print ? 'checked' : ''}>
                                             <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="specialPrint_${index}">Special print</label>
                                         </div>
                                         <div class="form-check form-check-sm">
-                                            <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1">
+                                            <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1" ${product.is_embroidered ? 'checked' : ''}>
                                             <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="isEmbroidered_${index}">Is embroidered</label>
                                         </div>
                                     </div>

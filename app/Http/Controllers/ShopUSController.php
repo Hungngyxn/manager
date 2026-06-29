@@ -141,6 +141,81 @@ class ShopUSController extends Controller
 	}
 
 	/**
+	 * Lưu thông tin "Print setup" (modal ở trang /orders).
+	 * - Thông tin theo từng sản phẩm (product_type, color, size, print_position,
+	 *   design_url, mockup_url, special_print, is_embroidered) -> gộp vào cột `products`.
+	 * - Thông tin cấp đơn (shipment, printer, shipping_label_url) -> cột `print`.
+	 * Khớp đơn theo shop_us.order_id (giá trị JS gửi lên từ data-order).
+	 */
+	public function savePrintInfo(Request $request, $orderId)
+	{
+		$order = ShopUs::where('order_id', $orderId)->firstOrFail();
+
+		// Phân quyền: user thường chỉ sửa được đơn của shop mình sở hữu (chống IDOR).
+		$user = auth()->user();
+		$isAdmin = (int) optional($user->role)->is_super_user === 1;
+		if (!$isAdmin) {
+			$owns = SellerHasShop::where('user_id', $user->id)
+				->where('shop_code', $order->shop_code)
+				->exists();
+			if (!$owns) {
+				abort(403);
+			}
+		}
+
+		$validated = $request->validate([
+			'shipment' => 'nullable|string|max:255',
+			'printer' => 'required|string|max:255',
+			'shipping_label_url' => 'required|url|max:2000',
+			'products' => 'required|array',
+			'products.*.product_type' => 'nullable|string|max:255',
+			'products.*.color' => 'nullable|string|max:255',
+			'products.*.size' => 'nullable|string|max:255',
+			'products.*.design_url' => 'nullable|url|max:2000',
+			'products.*.mockup_url' => 'nullable|url|max:2000',
+			'products.*.print_position' => 'nullable|array',
+			'products.*.print_position.*' => 'string|max:255',
+			'products.*.special_print' => 'nullable',
+			'products.*.is_embroidered' => 'nullable',
+			'products.*.sku' => 'nullable|string|max:255',
+			'products.*.quantity' => 'nullable',
+		]);
+
+		// 1) Gộp thông tin print theo từng sản phẩm vào cột products (giữ nguyên dữ liệu cũ).
+		$existing = $order->products ?? []; // đã cast 'array'
+		$incoming = $validated['products'] ?? [];
+
+		$printKeys = ['product_type', 'color', 'size', 'print_position', 'design_url', 'mockup_url'];
+
+		foreach ($incoming as $index => $data) {
+			if (!isset($existing[$index]) || !is_array($existing[$index])) {
+				$existing[$index] = [];
+			}
+
+			foreach ($printKeys as $k) {
+				if (array_key_exists($k, $data)) {
+					$existing[$index][$k] = $data[$k];
+				}
+			}
+
+			// Checkbox: có mặt trong request = bật.
+			$existing[$index]['special_print'] = !empty($data['special_print']);
+			$existing[$index]['is_embroidered'] = !empty($data['is_embroidered']);
+		}
+
+		// 2) Thông tin cấp đơn -> cột print.
+		$order->products = array_values($existing);
+		$order->print = [
+			'shipment' => $validated['shipment'] ?? null,
+			'printer' => $validated['printer'],
+			'shipping_label_url' => $validated['shipping_label_url'],
+		];
+		$order->save();
+
+		return redirect()->back()->with('success', 'Print info saved successfully.');
+	}
+
+	/**
 	 * Đẩy việc đồng bộ chạy nền sau response để không treo trình duyệt.
 	 */
 	public function syncOrdersWithLabel()

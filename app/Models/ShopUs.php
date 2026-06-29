@@ -26,11 +26,13 @@ class ShopUs extends Model
         'label_link',
         'status',
         'total_amount',
-        'price'
+        'price',
+        'print',
     ];
 
     protected $casts = [
         'products' => 'array', // để Laravel tự decode JSON thành mảng
+        'print' => 'array',    // thông tin print cấp đơn (shipment, printer, shipping_label_url)
     ];
 
     public function sellerHasShop()

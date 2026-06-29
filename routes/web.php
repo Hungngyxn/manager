@@ -97,6 +97,9 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/sample-file', [OrderController::class, 'downloadSample'])->name('download-sample');
         Route::get('/sync', [OrderController::class, 'sync'])->name('sync');
 
+        // Lưu print info (modal "Print setup") cho đơn ShopUS, khớp theo shop_us.order_id
+        Route::post('/{orderId}/save-print-info', [ShopUsController::class, 'savePrintInfo'])->name('save-print-info');
+
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
         Route::put('/{order}', [OrderController::class, 'update'])->name('update');
