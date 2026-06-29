@@ -172,7 +172,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::post('/update', [ShopUsController::class, 'update'])->name('update');
         Route::get('/create-label', [ShopUsController::class, 'syncOrdersWithLabel'])->name('createLabel');
         Route::get('/label/{id}', [ShopUsController::class, 'downloadLabel'])->name('label.download');
-        Route::get('/get-label', [ShopUsController::class, 'syncPendingOrdersStatus'])->name('getLabel');
+        Route::get('/get-label', [ShopUsController::class, 'runSyncPendingOrdersStatus'])->name('getLabel');
         Route::post('/export-selected', [ShopUsController::class, 'exportSelected'])
             ->name('export.selected');
     });

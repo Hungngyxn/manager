@@ -175,7 +175,7 @@ class TikTokService
             ];
 
             $body = [
-                'order_status' => 'AWAITING_COLLECTION',
+                'order_status' => 'AWAITING_SHIPMENT',
             ];
 
             if ($pageToken) {
@@ -331,7 +331,7 @@ class TikTokService
 
     public function handleOrderAndGetLabel(Client $client, string $orderId): array
     {
-        dd(1);
+
         try {
             $packageResponse = $client->Fulfillment->createPackages($orderId);
 

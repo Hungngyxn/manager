@@ -102,7 +102,7 @@ class ShopUSController extends Controller
 
 		// shop_us.shop_code là shop_code thật -> map sang shop_name (seller_has_shop) để hiển thị.
 		$nameByCode = SellerHasShop::whereIn('shop_code', $shopCodes)->pluck('shop_name', 'shop_code');
-		$shops = $shopCodes->map(fn ($code) => [
+		$shops = $shopCodes->map(fn($code) => [
 			'value' => $code,                       // lọc theo shop_us.shop_code (=shop_code thật)
 			'label' => $nameByCode[$code] ?? $code, // hiển thị shop_name, fallback chính code
 		]);
@@ -160,12 +160,6 @@ class ShopUSController extends Controller
 
 		$shops = SellerHasShop::where('team_id', 10)->get();
 
-		$pst1 = new \DateTime('now', new \DateTimeZone('America/Los_Angeles'));
-		$pst = (clone $pst1)->modify('-1 day');
-
-		$startOfDaySLA = (clone $pst)->setTime(2, 0, 0)->getTimestamp();
-		$endOfDaySLA = (clone $pst1)->setTime(6, 0, 0)->getTimestamp();
-
 		foreach ($shops as $shop) {
 
 			try {
@@ -181,7 +175,7 @@ class ShopUSController extends Controller
 				$client = $this->tiktok->client();
 				$client->setAccessToken($token);
 				$client->setShopCipher($shop->shop_cipher);
-					
+
 				$orders = $this->tiktok->fetchOrderList($client);
 
 				if (empty($orders)) {
@@ -536,6 +530,7 @@ class ShopUSController extends Controller
 					continue;
 				}
 
+
 				$orderChunks = array_chunk($pendingOrderIds, 50);
 
 				foreach ($orderChunks as $chunk) {
@@ -557,22 +552,22 @@ class ShopUSController extends Controller
 
 								if ($newStatus === 'AWAITING_COLLECTION') {
 									$packageId = $orderData['packages'][0]['id'] ?? null;
+									$currentOrder = ShopUs::where('order_id', $orderId)->first();
 
-									if ($packageId) {
+									if ($packageId & empty($currentOrder->label_link)) {
 										$label = $client->Fulfillment->getPackageShippingDocument(
 											$packageId,
 											'SHIPPING_LABEL',
 											'A6'
 										);
 
-										if (!empty($label['doc_url'])) {
-											$updateData['label_link'] = $label['doc_url'];
+										if (!empty($orderData['tracking_number'])) {
+											$updateData['tracking_number'] = $orderData['tracking_number'];
 										}
+										$newLabel = $this->localizeLabel($label['doc_url'], $orderId);
+										$updateData['label_link'] = $newLabel;
 									}
 
-									if (!empty($orderData['tracking_number'])) {
-										$updateData['tracking_number'] = $orderData['tracking_number'];
-									}
 								}
 
 								ShopUs::where('order_id', $orderId)->update($updateData);
