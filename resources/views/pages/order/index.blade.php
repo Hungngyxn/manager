@@ -114,6 +114,28 @@
 
                                 {{-- Cột Action --}}
                                 <td>
+                                    @php
+                                        $modalProducts = is_string($order->products)
+                                            ? json_decode($order->products, true)
+                                            : $order->products ?? [];
+                                        $orderJsonData = [
+                                            'order_id' => $order->order_id,
+                                            'label_link' => $order->label_link ?? '',
+                                            'products' => $modalProducts,
+                                            'print' => $order->print ?? null,
+                                        ];
+
+                                        $printStatus = $order->print_status ?? 'not_sent';
+                                        $hasPrintSetup = !empty($order->print);
+                                        $isSending = $printStatus === 'sending';
+                                        $printBadge = [
+                                            'sent' => ['bg-success', 'Sent'],
+                                            'sending' => ['bg-warning text-dark', 'Sending…'],
+                                            'pending_payment' => ['bg-info text-dark', 'Pending payment'],
+                                            'failed' => ['bg-danger', 'Failed'],
+                                        ][$printStatus] ?? null;
+                                    @endphp
+
                                     <div class="dropdown">
                                         <button class="btn" type="button" data-bs-toggle="dropdown"
                                             style="background-color: #7b8ea3; border: none; border-radius: 10px; display: inline-flex; align-items: center; gap: 12px; color: white;">
@@ -122,20 +144,19 @@
                                         </button>
 
                                         <ul class="dropdown-menu shadow border-0">
-                                            <li><a class="dropdown-item" href="#"><i
-                                                        class="bi bi-pencil-fill me-2"></i> Sent to printer </a></li>
                                             <li>
-                                                @php
-                                                    $modalProducts = is_string($order->products)
-                                                        ? json_decode($order->products, true)
-                                                        : $order->products ?? [];
-                                                    $orderJsonData = [
-                                                        'order_id' => $order->order_id,
-                                                        'label_link' => $order->label_link ?? '',
-                                                        'products' => $modalProducts,
-                                                        'print' => $order->print ?? null,
-                                                    ];
-                                                @endphp
+                                                <form method="POST"
+                                                    action="{{ route('orders.send-to-printer', $order->order_id) }}"
+                                                    class="m-0 form-send-to-printer">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item btn-send-to-printer"
+                                                        @if ($isSending || !$hasPrintSetup) disabled @endif
+                                                        @if (!$hasPrintSetup) title="Cần lưu Print setup trước" @endif>
+                                                        <i class="bi bi-printer-fill me-2"></i> Send to printer
+                                                    </button>
+                                                </form>
+                                            </li>
+                                            <li>
                                                 <button type="button" class="dropdown-item btn-send-printer"
                                                     data-bs-toggle="modal" data-bs-target="#updatePrintModal"
                                                     data-order="{{ json_encode($orderJsonData) }}">
@@ -148,6 +169,17 @@
                                                     Buy label</a></li>
                                         </ul>
                                     </div>
+
+                                    @if ($printBadge)
+                                        <div class="mt-1">
+                                            <span class="badge {{ $printBadge[0] }}"
+                                                style="font-size: 0.65rem;">{{ $printBadge[1] }}</span>
+                                            @if ($order->provider_order_id)
+                                                <small class="text-muted d-block"
+                                                    style="font-size: 0.65rem;">{{ $order->provider_order_id }}</small>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
 
                                 {{-- Seller --}}
@@ -353,6 +385,18 @@
                     });
                 });
 
+                // Send to printer: khoá nút ngay khi submit để tránh bấm nhiều lần
+                document.querySelectorAll('.form-send-to-printer').forEach(form => {
+                    form.addEventListener('submit', function() {
+                        const btn = this.querySelector('.btn-send-to-printer');
+                        if (btn) {
+                            btn.setAttribute('disabled', 'disabled');
+                            btn.innerHTML =
+                                '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+                        }
+                    });
+                });
+
                 // Checkbox Select All
                 const checkAll = document.getElementById('checkAll');
                 checkAll?.addEventListener('click', e => {
@@ -421,6 +465,9 @@
                             const pType = product.product_type || 'Tshirt';
                             const pDesign = product.design_url || '';
                             const pMockup = product.mockup_url || '';
+                            const pVariant = (product.variant_id ?? '') === null ? '' : (product
+                                .variant_id ?? '');
+                            const pNote = product.note || '';
                             const savedPositions = Array.isArray(product.print_position) ? product
                                 .print_position : null;
 
@@ -455,9 +502,15 @@
                                             <img src="${imgUrl}" class="img-fluid rounded border bg-white shadow-sm" alt="Product" style="object-fit: cover; aspect-ratio: 1/1; max-height: 90px; width: 100%;">
                                         </div>
                                         <div class="col-9">
-                                            <div class="mb-2">
-                                                <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Product type: <span class="text-danger">*</span></label>
-                                                <input type="text" name="products[${index}][product_type]" class="form-control form-control-sm" value="${pType}" required>
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-7">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Product type: <span class="text-danger">*</span></label>
+                                                    <input type="text" name="products[${index}][product_type]" class="form-control form-control-sm" value="${pType}" required>
+                                                </div>
+                                                <div class="col-5">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Variant ID: <span class="text-danger">*</span></label>
+                                                    <input type="number" name="products[${index}][variant_id]" class="form-control form-control-sm" value="${escAttr(pVariant)}" placeholder="vd 12128" required>
+                                                </div>
                                             </div>
                                             <div class="row g-2">
                                                 <div class="col-6">
@@ -498,6 +551,11 @@
                                             <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1" ${product.is_embroidered ? 'checked' : ''}>
                                             <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="isEmbroidered_${index}">Is embroidered</label>
                                         </div>
+                                    </div>
+
+                                    <div class="mb-1 mt-2">
+                                        <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Note:</label>
+                                        <input type="text" name="products[${index}][note]" class="form-control form-control-sm" value="${escAttr(pNote)}" placeholder="Ghi chú cho nhà in (tuỳ chọn)">
                                     </div>
 
                                     <input type="hidden" name="products[${index}][sku]" value="${pSku}">

@@ -9,6 +9,13 @@ class ShopUs extends Model
 {
     use HasFactory;
 
+    /** Trạng thái gửi nhà in (cột print_status). */
+    public const PRINT_NOT_SENT = 'not_sent';
+    public const PRINT_SENDING = 'sending';
+    public const PRINT_SENT = 'sent';
+    public const PRINT_PENDING_PAYMENT = 'pending_payment';
+    public const PRINT_FAILED = 'failed';
+
     protected $table = 'shop_us';
 
     protected $fillable = [
@@ -28,6 +35,9 @@ class ShopUs extends Model
         'total_amount',
         'price',
         'print',
+        'print_provider',
+        'provider_order_id',
+        'print_status',
     ];
 
     protected $casts = [

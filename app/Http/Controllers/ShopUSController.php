@@ -150,18 +150,7 @@ class ShopUSController extends Controller
 	public function savePrintInfo(Request $request, $orderId)
 	{
 		$order = ShopUs::where('order_id', $orderId)->firstOrFail();
-
-		// Phân quyền: user thường chỉ sửa được đơn của shop mình sở hữu (chống IDOR).
-		$user = auth()->user();
-		$isAdmin = (int) optional($user->role)->is_super_user === 1;
-		if (!$isAdmin) {
-			$owns = SellerHasShop::where('user_id', $user->id)
-				->where('shop_code', $order->shop_code)
-				->exists();
-			if (!$owns) {
-				abort(403);
-			}
-		}
+		$this->authorizeOrderAccess($order);
 
 		$validated = $request->validate([
 			'shipment' => 'nullable|string|max:255',
@@ -171,6 +160,8 @@ class ShopUSController extends Controller
 			'products.*.product_type' => 'nullable|string|max:255',
 			'products.*.color' => 'nullable|string|max:255',
 			'products.*.size' => 'nullable|string|max:255',
+			'products.*.variant_id' => 'nullable|integer',
+			'products.*.note' => 'nullable|string|max:500',
 			'products.*.design_url' => 'nullable|url|max:2000',
 			'products.*.mockup_url' => 'nullable|url|max:2000',
 			'products.*.print_position' => 'nullable|array',
@@ -185,7 +176,7 @@ class ShopUSController extends Controller
 		$existing = $order->products ?? []; // đã cast 'array'
 		$incoming = $validated['products'] ?? [];
 
-		$printKeys = ['product_type', 'color', 'size', 'print_position', 'design_url', 'mockup_url'];
+		$printKeys = ['product_type', 'color', 'size', 'variant_id', 'note', 'print_position', 'design_url', 'mockup_url'];
 
 		foreach ($incoming as $index => $data) {
 			if (!isset($existing[$index]) || !is_array($existing[$index])) {
@@ -213,6 +204,51 @@ class ShopUSController extends Controller
 		$order->save();
 
 		return redirect()->back()->with('success', 'Print info saved successfully.');
+	}
+
+	/**
+	 * "Send to printer": gửi đơn tới nhà in (FlashShip mặc định) ở chế độ nền.
+	 * - Bắt buộc đã lưu Print setup (cột print).
+	 * - Chống bấm nhiều lần: nếu đang 'sending' thì từ chối.
+	 */
+	public function sendToPrinter(Request $request, $orderId)
+	{
+		$order = ShopUs::where('order_id', $orderId)->firstOrFail();
+		$this->authorizeOrderAccess($order);
+
+		if (empty($order->print)) {
+			return redirect()->back()->with('error', 'Chưa cấu hình Print setup cho đơn này.');
+		}
+
+		if ($order->print_status === ShopUs::PRINT_SENDING) {
+			return redirect()->back()->with('error', 'Đơn đang được gửi tới nhà in, vui lòng đợi.');
+		}
+
+		// Khoá trạng thái trước khi đẩy job để chặn double-submit.
+		$order->update(['print_status' => ShopUs::PRINT_SENDING]);
+
+		\App\Jobs\SendOrderToPrinterJob::dispatchAfterResponse($order->id);
+
+		return redirect()->back()->with('status', 'Đang gửi đơn tới nhà in ở chế độ nền. Tải lại trang để xem trạng thái.');
+	}
+
+	/**
+	 * Chặn IDOR: user thường chỉ thao tác trên đơn của shop mình sở hữu.
+	 */
+	private function authorizeOrderAccess(ShopUs $order): void
+	{
+		$user = auth()->user();
+		$isAdmin = (int) optional($user->role)->is_super_user === 1;
+		if ($isAdmin) {
+			return;
+		}
+
+		$owns = SellerHasShop::where('user_id', $user->id)
+			->where('shop_code', $order->shop_code)
+			->exists();
+		if (!$owns) {
+			abort(403);
+		}
 	}
 
 	/**

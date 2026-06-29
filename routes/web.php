@@ -100,6 +100,9 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         // Lưu print info (modal "Print setup") cho đơn ShopUS, khớp theo shop_us.order_id
         Route::post('/{orderId}/save-print-info', [ShopUsController::class, 'savePrintInfo'])->name('save-print-info');
 
+        // Gửi đơn tới nhà in (Send to printer) - chạy nền
+        Route::post('/{orderId}/send-to-printer', [ShopUsController::class, 'sendToPrinter'])->name('send-to-printer');
+
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
         Route::put('/{order}', [OrderController::class, 'update'])->name('update');
