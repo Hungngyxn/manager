@@ -231,14 +231,8 @@ class ShopUSController extends Controller
 		// Khoá trạng thái trước khi đẩy job để chặn double-submit.
 		$order->update(['print_status' => ShopUs::PRINT_SENDING]);
 
-		// Provider đã được resolve và lưu sẵn vào print_provider khi bấm Save (savePrintInfo).
-		// Fallback map lại từ print.printer cho các đơn cũ lưu trước khi có cột này;
-		// null -> factory rơi về config('printing.default').
 		$providerKey = $order->print_provider ?: $this->providerKeyForPrinter($order->print['printer'] ?? null);
 
-		// Chống "âm thầm dùng default": đã chọn printer nhưng không map được provider
-		// (sai config / config cache cũ / nhà in chưa tích hợp) -> ghi log để phát hiện,
-		// tránh đơn lặng lẽ chạy sai nhà in khi có nhiều provider.
 		$selectedPrinter = $order->print['printer'] ?? null;
 		if ($selectedPrinter && !$providerKey) {
 			Log::warning('Send to printer: printer đã chọn không map được provider, dùng printing.default', [
