@@ -201,6 +201,10 @@ class ShopUSController extends Controller
 			'printer' => $validated['printer'],
 			'shipping_label_url' => $validated['shipping_label_url'],
 		];
+
+		// Cập nhật luôn print_provider theo nhà in đã chọn (map printer -> provider).
+		$order->print_provider = $this->providerKeyForPrinter($validated['printer']);
+
 		$order->save();
 
 		return redirect()->back()->with('success', 'Print info saved successfully.');
@@ -227,9 +231,44 @@ class ShopUSController extends Controller
 		// Khoá trạng thái trước khi đẩy job để chặn double-submit.
 		$order->update(['print_status' => ShopUs::PRINT_SENDING]);
 
-		\App\Jobs\SendOrderToPrinterJob::dispatchAfterResponse($order->id);
+		// Provider đã được resolve và lưu sẵn vào print_provider khi bấm Save (savePrintInfo).
+		// Fallback map lại từ print.printer cho các đơn cũ lưu trước khi có cột này;
+		// null -> factory rơi về config('printing.default').
+		$providerKey = $order->print_provider ?: $this->providerKeyForPrinter($order->print['printer'] ?? null);
+
+		// Chống "âm thầm dùng default": đã chọn printer nhưng không map được provider
+		// (sai config / config cache cũ / nhà in chưa tích hợp) -> ghi log để phát hiện,
+		// tránh đơn lặng lẽ chạy sai nhà in khi có nhiều provider.
+		$selectedPrinter = $order->print['printer'] ?? null;
+		if ($selectedPrinter && !$providerKey) {
+			Log::warning('Send to printer: printer đã chọn không map được provider, dùng printing.default', [
+				'order_id' => $order->order_id,
+				'printer'  => $selectedPrinter,
+				'default'  => config('printing.default'),
+			]);
+		}
+
+		\App\Jobs\SendOrderToPrinterJob::dispatchAfterResponse($order->id, $providerKey);
 
 		return redirect()->back()->with('status', 'Đang gửi đơn tới nhà in ở chế độ nền. Tải lại trang để xem trạng thái.');
+	}
+
+	/**
+	 * Map printer đã chọn (key trong config.printers) -> provider key thật.
+	 * Trả null nếu printer chưa map provider hoặc provider chưa được cấu hình
+	 * (đơn cũ / nhà in chưa tích hợp) để nơi gọi rơi về config('printing.default').
+	 */
+	private function providerKeyForPrinter(?string $printerKey): ?string
+	{
+		if (!$printerKey) {
+			return null;
+		}
+
+		$mappedProvider = config("printing.printers.{$printerKey}.provider");
+
+		return ($mappedProvider && config("printing.providers.{$mappedProvider}"))
+			? $mappedProvider
+			: null;
 	}
 
 	/**

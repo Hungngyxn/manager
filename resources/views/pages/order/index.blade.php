@@ -321,8 +321,10 @@
                                     class="text-danger">*</span></label>
                             <select id="modalPrinter" name="printer" class="form-select form-select-sm" required>
                                 <option value="">-Select printer-</option>
-                                <option value="printer_1">Printer 1</option>
-                                <option value="printer_2">Printer 2</option>
+                                @foreach (config('printing.printers', []) as $value => $printer)
+                                    <option value="{{ $value }}" {{ empty($printer['enabled']) ? 'disabled' : '' }}>
+                                        {{ $printer['label'] }}</option>
+                                @endforeach
                             </select>
                         </div>
 
@@ -330,7 +332,7 @@
                             <label class="form-label small fw-semibold text-dark mb-1">Shipping label url: <span
                                     class="text-danger">*</span></label>
                             <input type="url" id="modalShippingLabel" name="shipping_label_url"
-                                class="form-control form-control-sm" required>
+                                class="form-control form-control-sm" required readonly>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 pt-3 border-top px-1">
@@ -442,7 +444,13 @@
                         printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url || orderData
                             .label_link || '';
                         const printerEl = printModal.querySelector('#modalPrinter');
-                        if (printerEl) printerEl.value = print.printer || '';
+                        if (printerEl) {
+                            // Chỉ chọn lại khi printer đã lưu còn tồn tại (và không bị disabled);
+                            // ngược lại quay về "-Select printer-" để tránh ô select trống.
+                            const wanted = print.printer || '';
+                            const opt = [...printerEl.options].find(o => o.value === wanted && !o.disabled);
+                            printerEl.value = opt ? wanted : '';
+                        }
                         const shipmentEl = printModal.querySelector('#modalShipment');
                         if (shipmentEl && print.shipment) shipmentEl.value = print.shipment;
 

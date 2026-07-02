@@ -14,7 +14,9 @@ hiển thị danh sách đơn `shop_us`. Mỗi đơn có dropdown **Action**:
 
 - **Print setup** — cấu hình thông tin in (design, vị trí, printer, shipment, label…),
   lưu vào `shop_us.products` (theo từng sản phẩm) + `shop_us.print` (cấp đơn).
-- **Send to printer** — gửi đơn đã cấu hình tới nhà in (FlashShip) ở **chế độ nền**.
+  Dropdown **Printer** đọc từ `config('printing.printers')` (không hard-code trong blade).
+- **Send to printer** — gửi đơn đã cấu hình tới nhà in ở **chế độ nền**. Nhà in nhận đơn
+  được suy ra từ printer đã chọn (`print.printer` → `printers.{printer}.provider`).
 
 Luồng `Send to printer`:
 
@@ -26,11 +28,13 @@ Nút "Send to printer" (form POST)
         3. Bắt buộc đã có Print setup   → empty($order->print) thì chặn
         4. Chống double-submit          → print_status == 'sending' thì chặn
         5. set print_status = 'sending'
-        6. SendOrderToPrinterJob::dispatchAfterResponse($order->id)
+        6. providerKey = print_provider (đã set lúc Save) ?: map lại từ print.printer
+           (null → factory dùng printing.default)
+        7. SendOrderToPrinterJob::dispatchAfterResponse($order->id, $providerKey)
   └─> redirect back (response trả ngay, không treo trình duyệt)
 
 SendOrderToPrinterJob (chạy SAU response)
-  └─> PrintProviderFactory::make()                → resolve provider theo config
+  └─> PrintProviderFactory::make($providerKey)     → resolve provider theo config
   └─> provider->createOrder(PrintOrderRequest::fromShopUs($order))
   └─> cập nhật print_status = sent | pending_payment | failed
         (+ print_provider, provider_order_id khi thành công)
@@ -44,7 +48,7 @@ SendOrderToPrinterJob (chạy SAU response)
 ## 2. Sơ đồ file
 
 ```
-config/printing.php                                  # chọn provider mặc định + cấu hình từng nhà in
+config/printing.php                                  # default provider + 'providers' (cấu hình từng nhà in) + 'printers' (dropdown UI, map printer->provider)
 app/Services/Printing/
 ├── Contracts/PrintProvider.php                      # interface chung (hợp đồng)
 ├── DTO/
@@ -73,8 +77,8 @@ Nguyên tắc tách lớp:
 | Cột | Kiểu | Ý nghĩa |
 |---|---|---|
 | `products` | json | Mảng sản phẩm. Print setup gộp thêm: `variant_id, product_type, color, size, design_url, mockup_url, print_position[], special_print, is_embroidered, note` (giữ nguyên key gốc `sku, quantity, price, product_name, product_image…`). |
-| `print` | json | Cấp đơn: `{ shipment, printer, shipping_label_url }`. **Có giá trị = đã làm Print setup.** |
-| `print_provider` | string | Nhà in đã gửi (vd `flashship`). |
+| `print` | json | Cấp đơn: `{ shipment, printer, shipping_label_url }`. **Có giá trị = đã làm Print setup.** `printer` = **key trong `config.printers`** (ý định người dùng chọn, vd `flashship`). |
+| `print_provider` | string | Provider key (vd `flashship`) sẽ nhận đơn. Được set **ngay khi bấm Save** ở Print setup (map từ printer đã chọn qua `providerKeyForPrinter()`); Job xác nhận lại khi gửi thành công. `null` = printer chưa map provider → dùng `printing.default`. |
 | `provider_order_id` | string | Mã đơn nhà in trả về (FlashShip: `order_code`). |
 | `print_status` | string | Vòng đời trạng thái (xem dưới). |
 
@@ -92,7 +96,7 @@ Hằng số khai báo ở `App\Models\ShopUs::PRINT_*`. Badge hiển thị ở c
 
 ## 4. Thêm một nhà in mới (vd "PrintBee")
 
-Chỉ 3 bước, **không sửa controller/job/blade**:
+**Không sửa controller/job/blade** — chỉ chạm Provider class + `config/printing.php`:
 
 ### Bước 1 — Viết Provider implements `PrintProvider`
 
@@ -148,10 +152,23 @@ class PrintBeeProvider implements PrintProvider
 ],
 ```
 
-### Bước 3 — Chọn provider
+### Bước 3 — Cho phép chọn ở dropdown Printer
 
-- Đặt mặc định toàn hệ thống: `PRINT_PROVIDER=printbee` trong `.env`, **hoặc**
-- Gửi theo provider chỉ định: `SendOrderToPrinterJob::dispatchAfterResponse($id, 'printbee')`.
+Trong `config('printing.printers')`, mở khoá entry tương ứng và trỏ về provider vừa thêm:
+
+```php
+'printers' => [
+    // ...
+    'printbee' => ['label' => 'PrintBee', 'enabled' => true, 'provider' => 'printbee'],
+    // (label hiển thị và key printer độc lập với key provider — map qua trường 'provider')
+],
+```
+
+- `enabled => true` → hết bị disabled trong dropdown, seller chọn được.
+- `provider => 'printbee'` → khi Send to printer, `sendToPrinter()` lấy key này truyền vào Job.
+
+Ngoài ra vẫn có thể ép provider mặc định toàn hệ thống bằng `PRINT_PROVIDER=printbee` trong `.env`
+(áp dụng cho các đơn không map được printer → provider).
 
 Xong. `PrintOrderRequest::fromShopUs()` đã chuẩn hoá dữ liệu chung; provider mới tự lo phần map.
 

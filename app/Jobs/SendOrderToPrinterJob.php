@@ -46,7 +46,7 @@ class SendOrderToPrinterJob implements ShouldQueue
                         : ShopUs::PRINT_SENT,
                 ]);
 
-                Log::info("Send to printer OK: order {$order->order_id} -> {$result->providerOrderId} ({$result->code})");
+                Log::info("Send to printer OK: order {$order->order_id} via [{$provider->key()}] -> {$result->providerOrderId} ({$result->code})");
                 return;
             }
 
