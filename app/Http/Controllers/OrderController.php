@@ -66,6 +66,13 @@ class OrderController extends Controller
 
 	public function index(Request $request)
 	{
+		// Nội dung trang /orders là bảng ShopUS — xem ShopUsController@index.
+		// Code listing order cũ được giữ ở indexLegacy() để có thể khôi phục.
+		return app(ShopUsController::class)->index($request);
+	}
+
+	public function indexLegacy(Request $request)
+	{
 		$perPage = $request->get('perPage', 10);
 		$query = Order::query()->with('skuInfo');
 

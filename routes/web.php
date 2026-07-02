@@ -97,6 +97,12 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/sample-file', [OrderController::class, 'downloadSample'])->name('download-sample');
         Route::get('/sync', [OrderController::class, 'sync'])->name('sync');
 
+        // Lưu print info (modal "Print setup") cho đơn ShopUS, khớp theo shop_us.order_id
+        Route::post('/{orderId}/save-print-info', [ShopUsController::class, 'savePrintInfo'])->name('save-print-info');
+
+        // Gửi đơn tới nhà in (Send to printer) - chạy nền
+        Route::post('/{orderId}/send-to-printer', [ShopUsController::class, 'sendToPrinter'])->name('send-to-printer');
+
         Route::get('/{order}', [OrderController::class, 'show'])->name('show');
         Route::get('/{order}/edit', [OrderController::class, 'edit'])->name('edit');
         Route::put('/{order}', [OrderController::class, 'update'])->name('update');
@@ -108,7 +114,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/', [SellerHasShopController::class, 'index'])->name('index');
         Route::get('/create', [SellerHasShopController::class, 'create'])->name('create');
         Route::post('/', [SellerHasShopController::class, 'store'])->name('store');
-        Route::post('/check-seller', [SellerHasShopController::class, 'check_seller'])->name('check_seller');
+        Route::post('/check-seller', [SellerHasShopController::class, 'checkSeller'])->name('check_seller');
         Route::get('/sample-file', [SellerHasShopController::class, 'downloadSample'])->name('download-sample');
         Route::delete('/{shop}', [SellerHasShopController::class, 'destroy'])->name('destroy');
         Route::put('/{shop}', [SellerHasShopController::class, 'update'])->name('update');
@@ -150,7 +156,7 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
     //Report
     Route::prefix('report')->name('report.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
-        Route::post('/update-ads', [ReportController::class, 'updateAds'])->name('update.ads');
+        Route::get('/update-ads', [ReportSellerController::class, 'initDailyReports'])->name('update');
         //seller
         Route::get('/seller', [ReportSellerController::class, 'index'])->name('seller');
 
@@ -171,7 +177,8 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/', [ShopUsController::class, 'index'])->name('index');
         Route::post('/update', [ShopUsController::class, 'update'])->name('update');
         Route::get('/create-label', [ShopUsController::class, 'syncOrdersWithLabel'])->name('createLabel');
-        Route::get('/get-label', [ShopUsController::class, 'syncPendingOrdersStatus'])->name('getLabel');
+        Route::get('/label/{id}', [ShopUsController::class, 'downloadLabel'])->name('label.download');
+        Route::get('/get-label', [ShopUsController::class, 'runSyncPendingOrdersStatus'])->name('getLabel');
         Route::post('/export-selected', [ShopUsController::class, 'exportSelected'])
             ->name('export.selected');
     });

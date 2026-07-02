@@ -11,7 +11,6 @@ use App\Models\SellerHasShop;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class TikTokService
 {
@@ -25,10 +24,7 @@ class TikTokService
 
     public function authorizeUrl(): string
     {
-        $redirectUri = urlencode(config('tiktokshop.redirect_uri'));
-        $state = session('tiktok_state') ?? Str::random(40);
-
-        return "https://developer.sellersprint.com/open/authorize?key=0J8CJNYBtfLdRBjickYSGA%3D%3D";
+        return config('tiktokshop.authorize_url');
     }
 
     public function getAccessToken($shop): string
@@ -50,8 +46,9 @@ class TikTokService
                 $token->update([
                     'access_token' => $newToken['access_token'],
                     'refresh_token' => $newToken['refresh_token'] ?? $token->refresh_token,
-                    'expires_at' => now()->addSeconds($newToken['expires_in']),
+                    'expires_at' => $newToken['access_token_expire_in'],
                 ]);
+
                 return $newToken['access_token'];
             } catch (\Exception $e) {
                 Log::error('Refresh token failed', [
@@ -334,7 +331,7 @@ class TikTokService
 
     public function handleOrderAndGetLabel(Client $client, string $orderId): array
     {
-        dd(1);
+
         try {
             $packageResponse = $client->Fulfillment->createPackages($orderId);
 

@@ -30,4 +30,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'track123' => [
+        'key' => env('TRACK123_API_KEY'),
+        'base_url' => env('TRACK123_BASE_URL', 'https://api.track123.com/gateway/open-api/tk/v2.1'),
+    ],
+
 ];

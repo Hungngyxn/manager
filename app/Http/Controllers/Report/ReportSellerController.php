@@ -179,6 +179,7 @@ class ReportSellerController extends Controller
                 ]
             );
         }
+        return redirect()->back();
     }
 
     private function sortReports($reports, $sort)

@@ -9,6 +9,13 @@ class ShopUs extends Model
 {
     use HasFactory;
 
+    /** Trạng thái gửi nhà in (cột print_status). */
+    public const PRINT_NOT_SENT = 'not_sent';
+    public const PRINT_SENDING = 'sending';
+    public const PRINT_SENT = 'sent';
+    public const PRINT_PENDING_PAYMENT = 'pending_payment';
+    public const PRINT_FAILED = 'failed';
+
     protected $table = 'shop_us';
 
     protected $fillable = [
@@ -26,16 +33,44 @@ class ShopUs extends Model
         'label_link',
         'status',
         'total_amount',
-        'price'
+        'price',
+        'print',
+        'print_provider',
+        'provider_order_id',
+        'print_status',
     ];
 
     protected $casts = [
         'products' => 'array', // để Laravel tự decode JSON thành mảng
+        'print' => 'array',    // thông tin print cấp đơn (shipment, printer, shipping_label_url)
     ];
 
     public function sellerHasShop()
     {
         // Liên kết ngược về bảng seller_has_shop qua cột shop_code
         return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
+    }
+    /**
+     * shop_us KHÔNG có user_id. Liên kết qua seller_has_shop:
+     * shop_us.shop_code = seller_has_shop.shop_code.
+     */
+    public function shop()
+    {
+        return $this->belongsTo(SellerHasShop::class, 'shop_code', 'shop_code');
+    }
+
+    /**
+     * Seller sở hữu đơn, suy ra qua seller_has_shop.user_id.
+     */
+    public function seller()
+    {
+        return $this->hasOneThrough(
+            User::class,
+            SellerHasShop::class,
+            'shop_code', // FK trên seller_has_shop khớp local key của shop_us
+            'id',        // PK trên users
+            'shop_code', // local key trên shop_us
+            'user_id'    // local key trên seller_has_shop -> users.id
+        );
     }
 }

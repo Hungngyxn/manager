@@ -1,23 +1,39 @@
 @extends('layouts.admin', ['accesses' => $accesses, 'active' => 'order'])
 
 @section('_content')
-    @php
-        $isAdmin = auth()->user()->role->name === 'Administrator';
-    @endphp
-    <div class="container-fluid mt-2">
-        <div class="row">
-            <div class="col-12">
-                <h4 class="font-weight-bold">Orders</h4>
-                <hr>
-            </div>
+    <div class="container-fluid mt-3 px-4">
+        {{-- 🔹 Header --}}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold mb-0"><i class="bi bi-box-seam"></i> ShopUS Orders</h4>
         </div>
-        <div class="row">
-            <div class="col-12 mb-3">
-                <div class="bg-light text-dark card p-4 shadow-sm rounded">
+
+        <div class="card shadow-sm mb-3 border-0">
+            <div class="card-body py-3">
+                {{-- 🔹 Action (trái) + Filter (phải) trên cùng một hàng, không responsive --}}
+                <div class="d-flex justify-content-between align-items-center gap-2 flex-nowrap">
+                    {{-- Action buttons --}}
+                    <div class="d-flex align-items-center gap-2 flex-nowrap">
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.createLabel') }}">
+                            <i class="bi bi-printer"></i> Create Label
+                        </a>
+                        <a class="btn btn-outline-primary px-3 btn-label-sync text-nowrap"
+                            href="{{ route('shopus.getLabel') }}">
+                            <i class="bi bi-printer"></i> Get Label
+                        </a>
+                        <form id="exportForm" action="{{ route('shopus.export.selected') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-success px-3 text-nowrap">
+                                <i class="bi bi-download"></i> Export Selected
+                            </button>
+                        </form>
+                    </div>
+
+                    {{-- Filter --}}
                     <form method="GET" action="{{ route('orders.index') }}" id="filterForm"
-                        class="d-flex align-items-center gap-2">
-                        @if (count($sellers) > 0)
-                            <select name="user_id" class="form-select px-3 py-2 select2">
+                        class="d-flex gap-2 flex-nowrap align-items-center">
+                        @if ($isAdmin && count($sellers) > 0)
+                            <select name="user_id" class="form-select" style="width: 160px;">
                                 <option value="">-- All Sellers --</option>
                                 <option value="Unassigned" {{ request('user_id') === 'Unassigned' ? 'selected' : '' }}>
                                     Unassigned</option>
@@ -29,355 +45,301 @@
                                 @endforeach
                             </select>
                         @endif
-                        <select name="shop_name" class="form-select px-3 py-2 select2">
+
+                        <select name="shop_name" class="form-select" style="width: 160px;">
                             <option value="">-- All Shops --</option>
-                            @foreach ($shopNames as $shopName)
-                                <option value="{{ $shopName }}"
-                                    {{ request('shop_name') == $shopName ? 'selected' : '' }}>
-                                    {{ $shopName }}
+                            @foreach ($shops as $shop)
+                                <option value="{{ $shop['value'] }}"
+                                    {{ request('shop_name') == $shop['value'] ? 'selected' : '' }}>
+                                    {{ $shop['label'] }}
                                 </option>
                             @endforeach
                         </select>
-                        <div class="input-group flatpickr position-relative">
+
+                        <div class="input-group flatpickr position-relative" style="width: 150px;">
                             <input type="text" class="form-control ps-5 datepicker" name="date_start"
                                 value="{{ request('date_start') }}" placeholder="Start Date">
                             <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
                                 <i class="fas fa-calendar-alt"></i>
                             </span>
                         </div>
-                        <div class="input-group flatpickr position-relative">
+
+                        <div class="input-group flatpickr position-relative" style="width: 150px;">
                             <input type="text" class="form-control ps-5 datepicker" name="date_end"
                                 value="{{ request('date_end') }}" placeholder="End Date">
                             <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-secondary">
                                 <i class="fas fa-calendar-alt"></i>
                             </span>
                         </div>
-                        <div class="input-group form-check align-items-center" style="font-size: 1rem;">
-                            <input class=" me-1" type="checkbox" name="missing_sku" value="1"
-                                style="width: 1.2em; height: 1.2em;" {{ request('missing_sku') ? 'checked' : '' }}>
-                            <label class="form-check-label"> Show orders missing SKU </label>
-                        </div>
-                        <div class="input-group">
-                            <input type="text" name="search" value="{{ request('search') }}"
-                                class="form-control px-3 py-2" placeholder="Search ....">
-                        </div>
-                        <button class="btn btn-outline-secondary px-4" type="submit" id="btnsearch">
+
+                        <input type="text" name="search" value="{{ request('search') }}" class="form-control"
+                            style="width: 220px;" placeholder="🔍 Search name, order ID, tracking...">
+
+                        <button class="btn btn-outline-secondary text-nowrap" type="submit">
                             <i class="fas fa-search"></i>
                         </button>
-                        <button type="button" class="btn btn-danger" onclick="resetFilters()">
+                        <button type="button" class="btn btn-danger text-nowrap" onclick="resetFilters()"
+                            title="Reset filters">
                             <i class="fas fa-times"></i>
                         </button>
                     </form>
+                </div>
+            </div>
+        </div>
 
-                    {{-- Import/Export Buttons --}}
-                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap pt-3">
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            {{-- Import Dropdown --}}
-                            <div class="btn-group">
-                                <button class="btn btn-outline-dark btn-md dropdown-toggle px-4 py-2" type="button"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-file-import me-2"></i> Import
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="{{ route('orders.create') }}"><i
-                                                class="fas fa-keyboard me-1"></i> Import Manual</a></li>
-                                    <li>
-                                        <form action="{{ route('orders.import') }}" method="POST"
-                                            enctype="multipart/form-data" class="dropdown-item p-0 m-0 border-0"
-                                            id="importForm">
-                                            @csrf
-                                            <label class="dropdown-item d-block" style="cursor: pointer">
-                                                <i class="fas fa-file-excel me-1"></i> Import Excel (Max 20 files)
-                                                <input type="file" name="file[]" accept=".xlsx,.xls"
-                                                    onchange="handleImport(this)" style="display: none;" multiple>
-                                            </label>
-                                        </form>
-                                    </li>
-                                    <li>
-                                        <button type="button" class="dropdown-item" data-bs-toggle="modal"
-                                            data-bs-target="#addFulfillModal">
-                                            <i class="fas fa-truck me-1"></i> Add Fulfill Fee
+        {{-- 🔹 Orders Table --}}
+        <div class="table-responsive shadow-sm border rounded">
+            <form id="ordersForm">
+                <table class="table table-hover align-middle text-center mb-0">
+                    <span class="fw-semibold ms-2 mt-2 d-inline-block mb-2">Total orders: {{ $ordercount }}</span>
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px"><input type="checkbox" id="checkAll"></th>
+                            <th>Action</th>
+                            <th>Seller</th>
+                            <th>Order ID</th>
+                            <th>Customer Info</th>
+                            <th>Product</th>
+                            <th>Base Cost</th>
+                            <th>Tracking / Label</th>
+                            <th>Status</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($orders as $order)
+                            <tr>
+                                <td><input type="checkbox" name="ids[]" value="{{ $order->order_id }}"></td>
+
+                                {{-- Cột Action --}}
+                                <td>
+                                    @php
+                                        $modalProducts = is_string($order->products)
+                                            ? json_decode($order->products, true)
+                                            : $order->products ?? [];
+                                        $orderJsonData = [
+                                            'order_id' => $order->order_id,
+                                            'label_link' => $order->label_link ?? '',
+                                            'products' => $modalProducts,
+                                            'print' => $order->print ?? null,
+                                        ];
+
+                                        $printStatus = $order->print_status ?? 'not_sent';
+                                        $hasPrintSetup = !empty($order->print);
+                                        $isSending = $printStatus === 'sending';
+                                        $printBadge = [
+                                            'sent' => ['bg-success', 'Sent'],
+                                            'sending' => ['bg-warning text-dark', 'Sending…'],
+                                            'pending_payment' => ['bg-info text-dark', 'Pending payment'],
+                                            'failed' => ['bg-danger', 'Failed'],
+                                        ][$printStatus] ?? null;
+                                    @endphp
+
+                                    <div class="dropdown">
+                                        <button class="btn" type="button" data-bs-toggle="dropdown"
+                                            style="background-color: #7b8ea3; border: none; border-radius: 10px; display: inline-flex; align-items: center; gap: 12px; color: white;">
+                                            <i class="fa-solid fa-gears" style="font-size: 0.8rem;"></i>
+                                            <i class="fa-solid fa-chevron-down" style="font-size: 0.6rem;"></i>
                                         </button>
-                                    </li>
-                                </ul>
-                            </div>
 
-                            {{-- Export Dropdown --}}
-                            <div class="btn-group">
-                                <button class="btn btn-outline-dark btn-md dropdown-toggle px-4 py-2" type="button"
-                                    data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-file-export me-1"></i> Export
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><button class="dropdown-item" type="button" onclick="submitExportSelected()"><i
-                                                class="fas fa-check-square me-1"></i> Export Selected</button></li>
-                                    <li><button class="dropdown-item" type="button" onclick="submitExport('current')"><i
-                                                class="fas fa-clone me-1"></i> Export Current Page</button></li>
-                                    <li><button class="dropdown-item" type="button" onclick="submitExport('all')"><i
-                                                class="fas fa-globe me-1"></i> Export All</button></li>
-                                </ul>
-                            </div>
-
-                            {{-- Delete --}}
-                            @if ($isAdmin)
-                                <form method="POST" action="{{ route('orders.delete') }}" id="deleteForm">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="order_ids[]" id="deleteOrderIds">
-                                    <button type="submit" class="btn btn-outline-danger btn-md px-4 py-2">
-                                        <i class="fas fa-trash me-1"></i> Delete
-                                    </button>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
-
-                    {{-- Spinner --}}
-                    <div id="importSpinner" class="text-center my-3" style="display: none;">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Loading file Excel, pleasewait...</p>
-                    </div>
-
-                    {{-- Alerts --}}
-                    @if (session('status'))
-                        <div class="alert alert-success">{{ session('status') }}</div>
-                    @endif
-                    @if (session('error'))
-                        <div class="alert alert-danger">{{ session('error') }}</div>
-                    @endif
-
-                    {{-- Table --}}
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover text-center align-middle">
-                            <thead class="table text-uppercase">
-                                <tr>
-                                    <th><input type="checkbox" id="selectAllTable"></th>
-                                    <th>Seller</th>
-                                    <th>ORDER</th>
-                                    <th>Product</th>
-                                    <th>Shop</th>
-                                    <th>Quantity</th>
-                                    <th>Cost</th>
-                                    <th>Total</th>
-                                    <th>Fulfill Fee</th>
-                                    <th>Profit</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($orders as $order)
-                                    <tr @if (is_null($order->skuInfo)) class="table-danger" @endif>
-                                        <td><input type="checkbox" class="table-checkbox" value="{{ $order->id }}">
-                                        </td>
-                                        <td>{{ $order->seller->name ?? ' Unassigned' }}</td>
-                                        <td>
-                                            <div style="display: flex; flex-direction: column;">
-                                                <strong>{{ $order->order_id }}</strong>
-                                                <span class="text-gray-500 text-sm">{{ $order->created_at }}</span>
-                                            </div>
-                                        </td>
-                                        <td>{{ $order->skuInfo?->name ?? ($order->skuInfo?->sku ?? $order->sku . ' wrong sku') }}
-                                        </td>
-                                        <td>
-                                            @if (Str::contains($order->shop_name, 'New Shop'))
-                                                <span class="badge bg-danger">{{ $order->shop_name }}</span><br>
-                                                <a href="{{ route('shop.create') }}"
-                                                    class="btn btn-sm btn-primary mt-1">+
-                                                    Add Shop</a>
-                                            @else
-                                                {{ $order->shop_name }}
-                                            @endif
-                                        </td>
-                                        <td>{{ $order->quantity }}</td>
-                                        <td>{{ $order->cost }}</td>
-                                        <td>{{ $order->total }}</td>
-                                        <td>{{ $order->fulfill_fee }}</td>
-                                        <td>{{ $order->profit }}</td>
-                                        <td>
-                                            {{-- Edit --}}
-                                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                                                data-bs-target="#editModal" type="button"
-                                                onclick="openEditModal({{ $order->id }},'{{ addslashes($order->order_id) }}', '{{ addslashes($order->sku) }}', {{ $order->quantity }}, {{ $order->total }}, {{ $order->fulfill_fee ?? 0 }})">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-
-                                            {{-- Delete --}}
-                                            <form action="{{ route('orders.destroy', $order->id) }}" method="POST"
-                                                class="d-inline"
-                                                onsubmit="return confirm('Are you sure you want to delete this order?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                                    <i class="fas fa-trash"></i>
+                                        <ul class="dropdown-menu shadow border-0">
+                                            <li>
+                                                <form method="POST"
+                                                    action="{{ route('orders.send-to-printer', $order->order_id) }}"
+                                                    class="m-0 form-send-to-printer">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item btn-send-to-printer"
+                                                        @if ($isSending || !$hasPrintSetup) disabled @endif
+                                                        @if (!$hasPrintSetup) title="Cần lưu Print setup trước" @endif>
+                                                        <i class="bi bi-printer-fill me-2"></i> Send to printer
+                                                    </button>
+                                                </form>
+                                            </li>
+                                            <li>
+                                                <button type="button" class="dropdown-item btn-send-printer"
+                                                    data-bs-toggle="modal" data-bs-target="#updatePrintModal"
+                                                    data-order="{{ json_encode($orderJsonData) }}">
+                                                    <i class="bi bi-send-fill me-2"></i>Print setup
                                                 </button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="100%" class="text-center">No orders found.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <strong>Total order: {{ $orderCount }}</strong>
-                                </tr>
-                            </tfoot>
+                                            </li>
+                                            <li><a class="dropdown-item" href="#"><i
+                                                        class="bi bi-arrow-repeat me-2"></i> Re-update info</a></li>
+                                            <li><a class="dropdown-item" href="#"><i class="bi bi-tag-fill me-2"></i>
+                                                    Buy label</a></li>
+                                        </ul>
+                                    </div>
 
-                        </table>
-                    </div>
+                                    @if ($printBadge)
+                                        <div class="mt-1">
+                                            <span class="badge {{ $printBadge[0] }}"
+                                                style="font-size: 0.65rem;">{{ $printBadge[1] }}</span>
+                                            @if ($order->provider_order_id)
+                                                <small class="text-muted d-block"
+                                                    style="font-size: 0.65rem;">{{ $order->provider_order_id }}</small>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </td>
 
-                    {{-- Pagination + PerPage --}}
-                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
-                        <form method="GET" action="{{ route('orders.index') }}" class="d-flex align-items-center">
-                            @foreach (request()->except('perPage') as $key => $value)
-                                <input type="hidden" name="{{ $key }}" value="{{ $value }}">
-                            @endforeach
-                            <select name="perPage" class="form-select" onchange="this.form.submit()">
-                                @foreach ([10, 20, 50, 100] as $size)
-                                    <option value="{{ $size }}"
-                                        {{ request('perPage', 10) == $size ? 'selected' : '' }}>{{ $size }}
-                                    </option>
+                                {{-- Seller --}}
+                                <td>{{ $order->seller->name ?? 'Unassigned' }}</td>
+
+                                {{-- Order ID --}}
+                                <td class="text-start">
+                                    <div class="fw-semibold">{{ $order->order_id }}</div>
+                                    <small class="text-muted d-block">{{ $order->shop_code }}</small>
+                                    <small
+                                        class="text-muted d-block mt-1">{{ $order->created_at->format('Y-m-d H:i') }}</small>
+                                </td>
+
+                                {{-- Customer Info --}}
+                                <td class="text-start">
+                                    <div class="fw-semibold">{{ $order->customer_name }}</div>
+                                    <div class="text-muted small">{{ $order->customer_phone }}</div>
+                                    <small class="text-muted d-block"
+                                        style="max-width:250px; white-space:normal; word-break:break-word;">
+                                        {{ $order->customer_address }}<br>
+                                        {{ $order->customer_city }}, {{ $order->customer_state }}<br>
+                                        {{ $order->customer_country }} {{ $order->customer_postcode }}
+                                    </small>
+                                </td>
+
+                                {{-- Products --}}
+                                <td class="text-start">
+                                    @php
+                                        $products = is_string($order->products)
+                                            ? json_decode($order->products, true)
+                                            : $order->products ?? [];
+                                    @endphp
+                                    @foreach ($products as $p)
+                                        @php
+                                            $short =
+                                                strlen($p['product_name'] ?? '') > 40
+                                                    ? substr($p['product_name'], 0, 40) . '...'
+                                                    : $p['product_name'] ?? 'N/A';
+                                        @endphp
+                                        <div class="d-flex align-items-start mb-3">
+                                            @if (!empty($p['product_image']))
+                                                <img src="{{ $p['product_image'] }}" alt="Product" width="65"
+                                                    height="65" class="rounded border me-3 shadow-sm"
+                                                    style="object-fit: cover;">
+                                            @endif
+                                            <div>
+                                                <div class="fw-semibold mb-1">{{ $short }}</div>
+                                                <div class="text-muted small">
+                                                    <span>SKU: {{ $p['sku'] ?? 'N/A' }}</span> | <span>Qty:
+                                                        {{ $p['quantity'] ?? 1 }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </td>
+
+                                {{-- Base Cost: cost của SKU gốc × pack (N/A nếu không map được) --}}
+                                <td class="text-start align-top">
+                                    @foreach ($products as $p)
+                                        <div class="d-flex align-items-center mb-3" style="min-height:65px;">
+                                            @if (isset($p['base_cost']) && $p['base_cost'] !== null)
+                                                <span class="fw-semibold">${{ number_format($p['base_cost'], 2) }}</span>
+                                            @else
+                                                <span class="text-muted">N/A</span>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </td>
+
+                                <td>
+                                    <div class="fw-semibold">{{ $order->tracking_number ?? '—' }}</div>
+                                    @if ($order->label_link)
+                                        <a href="{{ route('shopus.label.download', $order->id) }}" target="_blank"
+                                            class="text-decoration-underline small text-primary">Label Link</a>
+                                    @endif
+                                </td>
+                                <td><span class="badge bg-success">{{ $order->status }}</span></td>
+                                <td class="text-muted small">{{ $order->price }}</td>
+                                <td class="text-muted small">{{ $order->total_amount }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="11" class="py-4 text-muted">No orders found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </form>
+        </div>
+
+        {{-- 🔹 Pagination + PerPage --}}
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+            <form method="GET" action="{{ route('orders.index') }}" class="d-flex align-items-center">
+                @foreach (request()->except('perPage', 'page') as $key => $value)
+                    <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                @endforeach
+                <select name="perPage" class="form-select" onchange="this.form.submit()">
+                    @foreach ([10, 20, 50, 100] as $size)
+                        <option value="{{ $size }}" {{ request('perPage', 10) == $size ? 'selected' : '' }}>
+                            {{ $size }}</option>
+                    @endforeach
+                </select>
+            </form>
+            <div>
+                {{ $orders->links() }}
+            </div>
+        </div>
+    </div>
+
+    {{-- 🔹 Modal Update Print Info --}}
+    <div class="modal fade" id="updatePrintModal" tabindex="-1" aria-labelledby="updatePrintModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 580px;">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold text-secondary" id="updatePrintModalLabel">Update print info</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body pt-2">
+                    <form id="printInfoForm" method="POST" action="">
+                        @csrf
+
+                        <div id="modalProductsContainer" class="mb-3 pe-1"
+                            style="max-height: 480px; overflow-y: auto; overflow-x: hidden;">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold text-muted mb-0"
+                                style="font-size:0.75rem;">Shipment:</label>
+                            <select id="modalShipment" name="shipment" class="form-select form-select-sm">
+                                <option value="Standard">Standard</option>
+                                <option value="Rush Product">Rush Product</option>
+                                <option value="Expedite Tiktok">Expedite Tiktok</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3 px-1">
+                            <label class="form-label small fw-semibold text-dark mb-1">Printer: <span
+                                    class="text-danger">*</span></label>
+                            <select id="modalPrinter" name="printer" class="form-select form-select-sm" required>
+                                <option value="">-Select printer-</option>
+                                @foreach (config('printing.printers', []) as $value => $printer)
+                                    <option value="{{ $value }}" {{ empty($printer['enabled']) ? 'disabled' : '' }}>
+                                        {{ $printer['label'] }}</option>
                                 @endforeach
                             </select>
-                        </form>
-                        <div>
-                            {{ $orders->appends(request()->only(['search', 'perPage', 'user_id', 'shop_name', 'date_start', 'date_end', 'missing_sku']))->links() }}
                         </div>
-                    </div>
 
-                    {{-- Export Hidden Form --}}
-                    <form id="exportForm" method="POST" action="{{ route('orders.export') }}">
-                        @csrf
-                        <input type="hidden" name="mode" id="exportMode">
-
-                        {{-- truyền lại toàn bộ filter --}}
-                        @foreach (request()->only(['user_id', 'shop_name', 'date_start', 'date_end', 'missing_sku', 'search']) as $name => $value)
-                            <input type="hidden" name="{{ $name }}" value="{{ $value }}">
-                        @endforeach
-
-                        {{-- export current page --}}
-                        <div id="currentPageIds">
-                            @foreach ($orders as $order)
-                                <input type="hidden" name="order_ids[]" value="{{ $order->id }}">
-                            @endforeach
+                        <div class="mb-3 px-1">
+                            <label class="form-label small fw-semibold text-dark mb-1">Shipping label url: <span
+                                    class="text-danger">*</span></label>
+                            <input type="url" id="modalShippingLabel" name="shipping_label_url"
+                                class="form-control form-control-sm" required readonly>
                         </div>
-                    </form>
 
-
-                    {{-- Modal Edit --}}
-                    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel"
-                        aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content border-0 shadow">
-                                <form method="POST" id="editOrderForm" class="modal-content">
-                                    @csrf
-                                    @method('PUT')
-                                    <input type="hidden" name="id" id="edit_id">
-
-                                    <div class="modal-header bg-primary text-white">
-                                        <h5 class="modal-title" id="editModalLabel">Edit SKU order</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-
-                                    <div class="modal-body px-4">
-                                        <div class="mb-3">
-                                            <label for="edit_order_id" class="form-label">Order ID</label>
-                                            <input type="text" name="order_id" id="edit_order_id"
-                                                class="form-control" required readonly>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label for="edit_sku" class="form-label">SKU</label>
-                                            <select name="sku" id="edit_sku" class="form-select select2-edit"
-                                                required>
-                                                <option value="">-- Select SKU --</option>
-                                                @foreach ($skus as $sku)
-                                                    <option value="{{ $sku->sku }}">{{ $sku->sku }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label for="edit_quantity" class="form-label">Quantity</label>
-                                            <input type="text" name="quantity" id="edit_quantity"
-                                                class="form-control" required>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label for="edit_total" class="form-label">Total</label>
-                                            <input type="text" name="total" id="edit_total" class="form-control"
-                                                required
-                                                {{ auth()->user()->role->name !== 'Administrator' ? 'readonly' : '' }}>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label for="edit_fulfill_fee" class="form-label">Fulfill Fee</label>
-                                            <input type="text" name="fulfill_fee" id="edit_fulfill_fee"
-                                                class="form-control" required>
-                                        </div>
-                                    </div>
-
-                                    <div class="modal-footer px-4">
-                                        <button type="submit" class="btn btn-success">Save</button>
-                                        <button type="button" class="btn btn-secondary"
-                                            data-bs-dismiss="modal">Cancel</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Modal xác nhận Export --}}
-                    <div class="modal fade" id="exportConfirmModal" tabindex="-1"
-                        aria-labelledby="exportConfirmModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content border-0 shadow-sm">
-                                <div class="modal-header bg-light">
-                                    <h5 class="modal-title">Confirm Export</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">Are you sure you want to export data?</div>
-                                <div class="modal-footer">
-                                    <button type="submit" class="btn btn-success" form="exportForm"
-                                        data-bs-dismiss="modal">
-                                        <i class="fas fa-file-excel me-1"></i> Confirm Export
-                                    </button>
-                                    <button type="button" class="btn btn-secondary"
-                                        data-bs-dismiss="modal">Cancel</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Modal Add Fulfill Fee --}}
-    <div class="modal fade" id="addFulfillModal" tabindex="-1" aria-labelledby="addFulfillModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Add Fulfill Fee</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body px-4">
-                    <form action="{{ route('orders.import.fulfill_fee') }}" method="POST" enctype="multipart/form-data"
-                        id="fulfillFeeForm">
-                        @csrf
-                        <div class="mb-3">
-                            <label for="fulfill_fee_file" class="form-label">Select File (.xlsx/.xls)</label>
-                            <input type="file" name="file" accept=".xlsx,.xls" class="form-control" required>
-                        </div>
-                        <div class="text-end">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-upload me-1"></i> Upload
-                            </button>
+                        <div class="d-flex justify-content-end gap-2 pt-3 border-top px-1">
+                            <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal"
+                                style="background-color: #7b8ea3; border: none;"><i class="bi bi-x-lg"></i> Close</button>
+                            <button type="submit" class="btn btn-sm btn-danger px-4"
+                                style="background-color: #d1127d; border: none;"><i class="bi bi-save"></i> Save</button>
                         </div>
                     </form>
                 </div>
@@ -385,13 +347,243 @@
         </div>
     </div>
 
-    {{-- Scripts --}}
+    {{-- 🔹 JS --}}
     @push('scripts')
-        <script src="/js/order.js"></script>
         <script>
-            document.getElementById('fulfillFeeForm')?.addEventListener('submit', function() {
-                document.getElementById('importSpinner').style.display = 'block';
+            function resetFilters() {
+                window.location.href = "{{ route('orders.index') }}";
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // 🔔 Flash message (toast)
+                @if (session('status') || session('success') || session('error'))
+                    @php $flashIsError = (bool) session('error'); @endphp
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: '{{ $flashIsError ? 'error' : 'success' }}',
+                            title: @json(session('error') ?? session('status') ?? session('success')),
+                            showConfirmButton: false,
+                            timer: 4000,
+                            timerProgressBar: true,
+                        });
+                    }
+                @endif
+
+                // Datepicker
+                if (typeof flatpickr !== 'undefined') {
+                    flatpickr(".datepicker", {
+                        dateFormat: "Y-m-d"
+                    });
+                }
+
+                // ⏳ Phản hồi tức thì khi bấm Create Label / Get Label (việc chạy ở nền)
+                document.querySelectorAll('.btn-label-sync').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        this.classList.add('disabled');
+                        this.setAttribute('aria-disabled', 'true');
+                        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+                    });
+                });
+
+                // Send to printer: khoá nút ngay khi submit để tránh bấm nhiều lần
+                document.querySelectorAll('.form-send-to-printer').forEach(form => {
+                    form.addEventListener('submit', function() {
+                        const btn = this.querySelector('.btn-send-to-printer');
+                        if (btn) {
+                            btn.setAttribute('disabled', 'disabled');
+                            btn.innerHTML =
+                                '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+                        }
+                    });
+                });
+
+                // Checkbox Select All
+                const checkAll = document.getElementById('checkAll');
+                checkAll?.addEventListener('click', e => {
+                    document.querySelectorAll('input[name="ids[]"]').forEach(cb => cb.checked = e.target.checked);
+                });
+
+                // Export Selected
+                document.getElementById('exportForm')?.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const checked = document.querySelectorAll('input[name="ids[]"]:checked');
+                    if (checked.length === 0) {
+                        alert('Please select at least one order.');
+                        return;
+                    }
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = this.action;
+                    form.appendChild(document.querySelector('input[name="_token"]').cloneNode(true));
+                    checked.forEach(cb => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'ids[]';
+                        input.value = cb.value;
+                        form.appendChild(input);
+                    });
+                    document.body.appendChild(form);
+                    form.submit();
+                });
+
+                // 🌟 Render đa sản phẩm vào modal Print
+                const printModal = document.getElementById('updatePrintModal');
+                if (printModal) {
+                    printModal.addEventListener('show.bs.modal', function(event) {
+                        const button = event.relatedTarget;
+                        const orderData = JSON.parse(button.getAttribute('data-order'));
+
+                        // Escape giá trị đưa vào thuộc tính HTML value="..."
+                        const escAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+                        const print = orderData.print || {};
+
+                        // Order-level: nạp lại giá trị đã lưu (fallback label_link cho shipping url).
+                        printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url || orderData
+                            .label_link || '';
+                        const printerEl = printModal.querySelector('#modalPrinter');
+                        if (printerEl) {
+                            // Chỉ chọn lại khi printer đã lưu còn tồn tại (và không bị disabled);
+                            // ngược lại quay về "-Select printer-" để tránh ô select trống.
+                            const wanted = print.printer || '';
+                            const opt = [...printerEl.options].find(o => o.value === wanted && !o.disabled);
+                            printerEl.value = opt ? wanted : '';
+                        }
+                        const shipmentEl = printModal.querySelector('#modalShipment');
+                        if (shipmentEl && print.shipment) shipmentEl.value = print.shipment;
+
+                        const form = printModal.querySelector('#printInfoForm');
+                        form.action = `{{ url('orders') }}/${encodeURIComponent(orderData.order_id)}/save-print-info`;
+
+                        const container = printModal.querySelector('#modalProductsContainer');
+                        container.innerHTML = '';
+
+                        const products = orderData.products || [];
+
+                        products.forEach((product, index) => {
+                            const imgUrl = product.product_image ? product.product_image :
+                                'https://via.placeholder.com/150';
+                            const pName = product.product_name || 'Tshirt';
+                            const pColor = product.color || 'White';
+                            const pSize = product.size || 'M';
+                            const pSku = product.sku || 'N/A';
+                            const pQty = product.quantity || 1;
+                            const pType = product.product_type || 'Tshirt';
+                            const pDesign = product.design_url || '';
+                            const pMockup = product.mockup_url || '';
+                            const pVariant = (product.variant_id ?? '') === null ? '' : (product
+                                .variant_id ?? '');
+                            const pNote = product.note || '';
+                            const savedPositions = Array.isArray(product.print_position) ? product
+                                .print_position : null;
+
+                            const positions = ['Front', 'Back', 'Neck', 'Right', 'Left', '3D',
+                                'Front Right', 'Front Left', 'Back Right', 'Back Left',
+                                'Center Front', 'Center Back'
+                            ];
+                            let positionsHtml = '';
+                            positions.forEach(pos => {
+                                const slug = pos.toLowerCase().replace(/ /g, '_');
+                                const inputId = `pos_${index}_${slug}`;
+                                // Nếu đã có dữ liệu lưu thì theo dữ liệu đó, chưa có thì mặc định "Front".
+                                const checked = (savedPositions ? savedPositions.includes(pos) : pos ===
+                                    'Front') ? 'checked' : '';
+
+                                positionsHtml += `
+                                    <div class="p-0">
+                                        <input type="checkbox" class="btn-check" name="products[${index}][print_position][]" value="${pos}" id="${inputId}" ${checked}>
+                                        <label class="btn btn-sm btn-outline-secondary px-2 py-1 text-nowrap" style="font-size: 0.72rem; min-width: 65px;" for="${inputId}">${pos}</label>
+                                    </div>
+                                `;
+                            });
+
+                            const productHtml = `
+                                <div class="product-item-block p-3 mb-3 rounded" style="background-color: #f8f9fa; border: 1px solid #e9ecef;">
+                                    <div class="fw-bold mb-2 text-dark text-truncate d-block" style="font-size: 0.85rem;">
+                                        ${pName}, ${pColor}, ${pSize}
+                                    </div>
+
+                                    <div class="row g-3 align-items-start mb-2">
+                                        <div class="col-3 text-center">
+                                            <img src="${imgUrl}" class="img-fluid rounded border bg-white shadow-sm" alt="Product" style="object-fit: cover; aspect-ratio: 1/1; max-height: 90px; width: 100%;">
+                                        </div>
+                                        <div class="col-9">
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-7">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Product type: <span class="text-danger">*</span></label>
+                                                    <input type="text" name="products[${index}][product_type]" class="form-control form-control-sm" value="${pType}" required>
+                                                </div>
+                                                <div class="col-5">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Variant ID: <span class="text-danger">*</span></label>
+                                                    <input type="number" name="products[${index}][variant_id]" class="form-control form-control-sm" value="${escAttr(pVariant)}" placeholder="vd 12128" required>
+                                                </div>
+                                            </div>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Color: <span class="text-danger">*</span></label>
+                                                    <input type="text" name="products[${index}][color]" class="form-control form-control-sm" value="${pColor}" required>
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Size: <span class="text-danger">*</span></label>
+                                                    <input type="text" name="products[${index}][size]" class="form-control form-control-sm" value="${pSize}" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold text-muted mb-1" style="font-size:0.75rem;">Print position:</label>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            ${positionsHtml}
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Design URL: <span class="text-danger">*</span></label>
+                                            <input type="url" name="products[${index}][design_url]" class="form-control form-control-sm" value="${escAttr(pDesign)}" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Mockup URL: <span class="text-danger">*</span></label>
+                                            <input type="url" name="products[${index}][mockup_url]" class="form-control form-control-sm" value="${escAttr(pMockup)}" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-2 d-flex flex-column gap-1">
+                                        <div class="form-check form-check-sm">
+                                            <input class="form-check-input" type="checkbox" id="specialPrint_${index}" name="products[${index}][special_print]" value="1" ${product.special_print ? 'checked' : ''}>
+                                            <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="specialPrint_${index}">Special print</label>
+                                        </div>
+                                        <div class="form-check form-check-sm">
+                                            <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1" ${product.is_embroidered ? 'checked' : ''}>
+                                            <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="isEmbroidered_${index}">Is embroidered</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-1 mt-2">
+                                        <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Note:</label>
+                                        <input type="text" name="products[${index}][note]" class="form-control form-control-sm" value="${escAttr(pNote)}" placeholder="Ghi chú cho nhà in (tuỳ chọn)">
+                                    </div>
+
+                                    <input type="hidden" name="products[${index}][sku]" value="${pSku}">
+                                    <input type="hidden" name="products[${index}][quantity]" value="${pQty}">
+                                </div>
+                            `;
+                            container.insertAdjacentHTML('beforeend', productHtml);
+                        });
+                    });
+                }
             });
         </script>
+
+        <style>
+            .product-item-block .btn-check:checked+.btn-outline-secondary {
+                border-color: #dc3545 !important;
+                color: #dc3545 !important;
+                background-color: transparent !important;
+                font-weight: 600;
+            }
+        </style>
     @endpush
 @endsection
