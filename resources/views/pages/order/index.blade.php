@@ -114,6 +114,28 @@
 
                                 {{-- Cột Action --}}
                                 <td>
+                                    @php
+                                        $modalProducts = is_string($order->products)
+                                            ? json_decode($order->products, true)
+                                            : $order->products ?? [];
+                                        $orderJsonData = [
+                                            'order_id' => $order->order_id,
+                                            'label_link' => $order->label_link ?? '',
+                                            'products' => $modalProducts,
+                                            'print' => $order->print ?? null,
+                                        ];
+
+                                        $printStatus = $order->print_status ?? 'not_sent';
+                                        $hasPrintSetup = !empty($order->print);
+                                        $isSending = $printStatus === 'sending';
+                                        $printBadge = [
+                                            'sent' => ['bg-success', 'Sent'],
+                                            'sending' => ['bg-warning text-dark', 'Sending…'],
+                                            'pending_payment' => ['bg-info text-dark', 'Pending payment'],
+                                            'failed' => ['bg-danger', 'Failed'],
+                                        ][$printStatus] ?? null;
+                                    @endphp
+
                                     <div class="dropdown">
                                         <button class="btn" type="button" data-bs-toggle="dropdown"
                                             style="background-color: #7b8ea3; border: none; border-radius: 10px; display: inline-flex; align-items: center; gap: 12px; color: white;">
@@ -122,19 +144,19 @@
                                         </button>
 
                                         <ul class="dropdown-menu shadow border-0">
-                                            <li><a class="dropdown-item" href="#"><i
-                                                        class="bi bi-pencil-fill me-2"></i> Sent to printer </a></li>
                                             <li>
-                                                @php
-                                                    $modalProducts = is_string($order->products)
-                                                        ? json_decode($order->products, true)
-                                                        : $order->products ?? [];
-                                                    $orderJsonData = [
-                                                        'order_id' => $order->order_id,
-                                                        'label_link' => $order->label_link ?? '',
-                                                        'products' => $modalProducts,
-                                                    ];
-                                                @endphp
+                                                <form method="POST"
+                                                    action="{{ route('orders.send-to-printer', $order->order_id) }}"
+                                                    class="m-0 form-send-to-printer">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item btn-send-to-printer"
+                                                        @if ($isSending || !$hasPrintSetup) disabled @endif
+                                                        @if (!$hasPrintSetup) title="Cần lưu Print setup trước" @endif>
+                                                        <i class="bi bi-printer-fill me-2"></i> Send to printer
+                                                    </button>
+                                                </form>
+                                            </li>
+                                            <li>
                                                 <button type="button" class="dropdown-item btn-send-printer"
                                                     data-bs-toggle="modal" data-bs-target="#updatePrintModal"
                                                     data-order="{{ json_encode($orderJsonData) }}">
@@ -147,6 +169,17 @@
                                                     Buy label</a></li>
                                         </ul>
                                     </div>
+
+                                    @if ($printBadge)
+                                        <div class="mt-1">
+                                            <span class="badge {{ $printBadge[0] }}"
+                                                style="font-size: 0.65rem;">{{ $printBadge[1] }}</span>
+                                            @if ($order->provider_order_id)
+                                                <small class="text-muted d-block"
+                                                    style="font-size: 0.65rem;">{{ $order->provider_order_id }}</small>
+                                            @endif
+                                        </div>
+                                    @endif
                                 </td>
 
                                 {{-- Seller --}}
@@ -276,7 +309,7 @@
                         <div class="mb-2">
                             <label class="form-label small fw-semibold text-muted mb-0"
                                 style="font-size:0.75rem;">Shipment:</label>
-                            <select name="products[${index}][shipment]" class="form-select form-select-sm">
+                            <select id="modalShipment" name="shipment" class="form-select form-select-sm">
                                 <option value="Standard">Standard</option>
                                 <option value="Rush Product">Rush Product</option>
                                 <option value="Expedite Tiktok">Expedite Tiktok</option>
@@ -288,8 +321,10 @@
                                     class="text-danger">*</span></label>
                             <select id="modalPrinter" name="printer" class="form-select form-select-sm" required>
                                 <option value="">-Select printer-</option>
-                                <option value="printer_1">Printer 1</option>
-                                <option value="printer_2">Printer 2</option>
+                                @foreach (config('printing.printers', []) as $value => $printer)
+                                    <option value="{{ $value }}" {{ empty($printer['enabled']) ? 'disabled' : '' }}>
+                                        {{ $printer['label'] }}</option>
+                                @endforeach
                             </select>
                         </div>
 
@@ -297,7 +332,7 @@
                             <label class="form-label small fw-semibold text-dark mb-1">Shipping label url: <span
                                     class="text-danger">*</span></label>
                             <input type="url" id="modalShippingLabel" name="shipping_label_url"
-                                class="form-control form-control-sm" required>
+                                class="form-control form-control-sm" required readonly>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 pt-3 border-top px-1">
@@ -352,6 +387,18 @@
                     });
                 });
 
+                // Send to printer: khoá nút ngay khi submit để tránh bấm nhiều lần
+                document.querySelectorAll('.form-send-to-printer').forEach(form => {
+                    form.addEventListener('submit', function() {
+                        const btn = this.querySelector('.btn-send-to-printer');
+                        if (btn) {
+                            btn.setAttribute('disabled', 'disabled');
+                            btn.innerHTML =
+                                '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+                        }
+                    });
+                });
+
                 // Checkbox Select All
                 const checkAll = document.getElementById('checkAll');
                 checkAll?.addEventListener('click', e => {
@@ -388,10 +435,27 @@
                         const button = event.relatedTarget;
                         const orderData = JSON.parse(button.getAttribute('data-order'));
 
-                        printModal.querySelector('#modalShippingLabel').value = orderData.label_link || '';
+                        // Escape giá trị đưa vào thuộc tính HTML value="..."
+                        const escAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+                        const print = orderData.print || {};
+
+                        // Order-level: nạp lại giá trị đã lưu (fallback label_link cho shipping url).
+                        printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url || orderData
+                            .label_link || '';
+                        const printerEl = printModal.querySelector('#modalPrinter');
+                        if (printerEl) {
+                            // Chỉ chọn lại khi printer đã lưu còn tồn tại (và không bị disabled);
+                            // ngược lại quay về "-Select printer-" để tránh ô select trống.
+                            const wanted = print.printer || '';
+                            const opt = [...printerEl.options].find(o => o.value === wanted && !o.disabled);
+                            printerEl.value = opt ? wanted : '';
+                        }
+                        const shipmentEl = printModal.querySelector('#modalShipment');
+                        if (shipmentEl && print.shipment) shipmentEl.value = print.shipment;
 
                         const form = printModal.querySelector('#printInfoForm');
-                        form.action = `/admin/orders/${orderData.order_id}/save-print-info`;
+                        form.action = `{{ url('orders') }}/${encodeURIComponent(orderData.order_id)}/save-print-info`;
 
                         const container = printModal.querySelector('#modalProductsContainer');
                         container.innerHTML = '';
@@ -407,6 +471,13 @@
                             const pSku = product.sku || 'N/A';
                             const pQty = product.quantity || 1;
                             const pType = product.product_type || 'Tshirt';
+                            const pDesign = product.design_url || '';
+                            const pMockup = product.mockup_url || '';
+                            const pVariant = (product.variant_id ?? '') === null ? '' : (product
+                                .variant_id ?? '');
+                            const pNote = product.note || '';
+                            const savedPositions = Array.isArray(product.print_position) ? product
+                                .print_position : null;
 
                             const positions = ['Front', 'Back', 'Neck', 'Right', 'Left', '3D',
                                 'Front Right', 'Front Left', 'Back Right', 'Back Left',
@@ -416,7 +487,9 @@
                             positions.forEach(pos => {
                                 const slug = pos.toLowerCase().replace(/ /g, '_');
                                 const inputId = `pos_${index}_${slug}`;
-                                const checked = pos === 'Front' ? 'checked' : '';
+                                // Nếu đã có dữ liệu lưu thì theo dữ liệu đó, chưa có thì mặc định "Front".
+                                const checked = (savedPositions ? savedPositions.includes(pos) : pos ===
+                                    'Front') ? 'checked' : '';
 
                                 positionsHtml += `
                                     <div class="p-0">
@@ -437,9 +510,15 @@
                                             <img src="${imgUrl}" class="img-fluid rounded border bg-white shadow-sm" alt="Product" style="object-fit: cover; aspect-ratio: 1/1; max-height: 90px; width: 100%;">
                                         </div>
                                         <div class="col-9">
-                                            <div class="mb-2">
-                                                <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Product type: <span class="text-danger">*</span></label>
-                                                <input type="text" name="products[${index}][product_type]" class="form-control form-control-sm" value="${pType}" required>
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-7">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Product type: <span class="text-danger">*</span></label>
+                                                    <input type="text" name="products[${index}][product_type]" class="form-control form-control-sm" value="${pType}" required>
+                                                </div>
+                                                <div class="col-5">
+                                                    <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Variant ID: <span class="text-danger">*</span></label>
+                                                    <input type="number" name="products[${index}][variant_id]" class="form-control form-control-sm" value="${escAttr(pVariant)}" placeholder="vd 12128" required>
+                                                </div>
                                             </div>
                                             <div class="row g-2">
                                                 <div class="col-6">
@@ -463,23 +542,28 @@
                                     <div class="row g-2 mb-2">
                                         <div class="col-6">
                                             <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Design URL: <span class="text-danger">*</span></label>
-                                            <input type="url" name="design_url" class="form-control form-control-sm" value="" required>
+                                            <input type="url" name="products[${index}][design_url]" class="form-control form-control-sm" value="${escAttr(pDesign)}" required>
                                         </div>
                                         <div class="col-6">
                                             <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Mockup URL: <span class="text-danger">*</span></label>
-                                            <input type="url" name="mockup_url" class="form-control form-control-sm" value="" required>
+                                            <input type="url" name="products[${index}][mockup_url]" class="form-control form-control-sm" value="${escAttr(pMockup)}" required>
                                         </div>
                                     </div>
 
                                     <div class="mt-2 d-flex flex-column gap-1">
                                         <div class="form-check form-check-sm">
-                                            <input class="form-check-input" type="checkbox" id="specialPrint_${index}" name="products[${index}][special_print]" value="1">
+                                            <input class="form-check-input" type="checkbox" id="specialPrint_${index}" name="products[${index}][special_print]" value="1" ${product.special_print ? 'checked' : ''}>
                                             <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="specialPrint_${index}">Special print</label>
                                         </div>
                                         <div class="form-check form-check-sm">
-                                            <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1">
+                                            <input class="form-check-input" type="checkbox" id="isEmbroidered_${index}" name="products[${index}][is_embroidered]" value="1" ${product.is_embroidered ? 'checked' : ''}>
                                             <label class="form-check-label small text-muted" style="font-size:0.8rem;" for="isEmbroidered_${index}">Is embroidered</label>
                                         </div>
+                                    </div>
+
+                                    <div class="mb-1 mt-2">
+                                        <label class="form-label small fw-semibold text-muted mb-0" style="font-size:0.75rem;">Note:</label>
+                                        <input type="text" name="products[${index}][note]" class="form-control form-control-sm" value="${escAttr(pNote)}" placeholder="Ghi chú cho nhà in (tuỳ chọn)">
                                     </div>
 
                                     <input type="hidden" name="products[${index}][sku]" value="${pSku}">
