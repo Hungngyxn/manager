@@ -10,6 +10,7 @@ use App\Services\Printing\Exceptions\PrintException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Adapter cho FlashShip POD API v2 (https://docs.flashship.net).
@@ -19,15 +20,15 @@ class FlashShipProvider implements PrintProvider
 {
     /** Các vị trí in FlashShip hỗ trợ: nhãn Print setup (lowercase) -> stem field. */
     private const POSITION_MAP = [
-        'front'            => 'front',
-        'back'             => 'back',
-        'neck'             => 'neck',
-        'right'            => 'right',
-        'left'             => 'left',
-        'pocket'           => 'pocket',
-        'hood'             => 'hood',
-        'neck inner'       => 'neck_inner',
-        'neck_inner'       => 'neck_inner',
+        'front' => 'front',
+        'back' => 'back',
+        'neck' => 'neck',
+        'right' => 'right',
+        'left' => 'left',
+        'pocket' => 'pocket',
+        'hood' => 'hood',
+        'neck inner' => 'neck_inner',
+        'neck_inner' => 'neck_inner',
         'neck label inner' => 'neck_inner',
     ];
 
@@ -46,6 +47,7 @@ class FlashShipProvider implements PrintProvider
 
         $response = $this->http()->post('/orders/shirt-add', $payload);
         $json = $response->json() ?? [];
+        Log::info($response);
 
         $code = $json['code'] ?? null;
         $isSuccess = $this->codeIs($code, '200');
@@ -88,14 +90,15 @@ class FlashShipProvider implements PrintProvider
         }
 
         return Cache::remember('flashship.access_token', 4 * 3600, function () {
-            $response = Http::baseUrl(rtrim($this->config['base_url'] ?? '', '/'))
+            $baseUrl = rtrim(trim($this->config['base_url'] ?? 'https://uat-api.flashship.net/seller-api-v2'), '/');
+            $response = Http::baseUrl($baseUrl)
                 ->timeout(30)
                 ->acceptJson()
                 ->post('/token', [
-                    'username' => $this->config['username'] ?? '',
-                    'password' => $this->config['password'] ?? '',
+                    'username' => 'testuser' ?? '',
+                    'password' => 'testpassword' ?? '',
                 ]);
-
+            Log::info($response);
             $token = $response->json('data.access_token');
             if (!$token) {
                 throw new PrintException(
@@ -117,20 +120,20 @@ class FlashShipProvider implements PrintProvider
         }
 
         return [
-            'order_id'            => $r->externalOrderId,
-            'buyer_first_name'    => $r->buyerFirstName,
-            'buyer_last_name'     => $r->buyerLastName,
-            'buyer_email'         => $r->buyerEmail,
-            'buyer_phone'         => $r->buyerPhone,
-            'buyer_address1'      => $r->buyerAddress1,
-            'buyer_address2'      => $r->buyerAddress2 ?? '',
-            'buyer_city'          => $r->buyerCity,
+            'order_id' => $r->externalOrderId,
+            'buyer_first_name' => $r->buyerFirstName,
+            'buyer_last_name' => $r->buyerLastName,
+            'buyer_email' => $r->buyerEmail,
+            'buyer_phone' => $r->buyerPhone,
+            'buyer_address1' => $r->buyerAddress1,
+            'buyer_address2' => $r->buyerAddress2 ?? '',
+            'buyer_city' => $r->buyerCity,
             'buyer_province_code' => $this->provinceCode($r->buyerProvince),
-            'buyer_zip'           => $r->buyerZip,
-            'buyer_country_code'  => $this->countryCode($r->buyerCountry),
-            'shipment'            => $this->shipmentCode($r->shipment),
-            'link_label'          => $r->labelUrl,
-            'products'            => array_map(fn (PrintOrderItem $it) => $this->buildProduct($it), $r->items),
+            'buyer_zip' => $r->buyerZip,
+            'buyer_country_code' => $this->countryCode($r->buyerCountry),
+            'shipment' => $this->shipmentCode($r->shipment),
+            'link_label' => $r->labelUrl,
+            'products' => array_map(fn(PrintOrderItem $it) => $this->buildProduct($it), $r->items),
         ];
     }
 
@@ -145,9 +148,9 @@ class FlashShipProvider implements PrintProvider
 
         $product = [
             'variant_id' => $item->variantId,
-            'quantity'   => max($item->quantity, 1),
-            'note'       => $item->note,
-            'printType'  => $item->printType ?? (int) ($this->config['default_print_type'] ?? 1),
+            'quantity' => max($item->quantity, 1),
+            'note' => $item->note,
+            'printType' => $item->printType ?? (int) ($this->config['default_print_type'] ?? 1),
         ];
 
         if ($item->specialPrint) {
@@ -232,16 +235,56 @@ class FlashShipProvider implements PrintProvider
 
     /** Tên bang US -> mã 2 ký tự. */
     private const US_STATES = [
-        'Alabama' => 'AL', 'Alaska' => 'AK', 'Arizona' => 'AZ', 'Arkansas' => 'AR', 'California' => 'CA',
-        'Colorado' => 'CO', 'Connecticut' => 'CT', 'Delaware' => 'DE', 'Florida' => 'FL', 'Georgia' => 'GA',
-        'Hawaii' => 'HI', 'Idaho' => 'ID', 'Illinois' => 'IL', 'Indiana' => 'IN', 'Iowa' => 'IA',
-        'Kansas' => 'KS', 'Kentucky' => 'KY', 'Louisiana' => 'LA', 'Maine' => 'ME', 'Maryland' => 'MD',
-        'Massachusetts' => 'MA', 'Michigan' => 'MI', 'Minnesota' => 'MN', 'Mississippi' => 'MS', 'Missouri' => 'MO',
-        'Montana' => 'MT', 'Nebraska' => 'NE', 'Nevada' => 'NV', 'New Hampshire' => 'NH', 'New Jersey' => 'NJ',
-        'New Mexico' => 'NM', 'New York' => 'NY', 'North Carolina' => 'NC', 'North Dakota' => 'ND', 'Ohio' => 'OH',
-        'Oklahoma' => 'OK', 'Oregon' => 'OR', 'Pennsylvania' => 'PA', 'Rhode Island' => 'RI', 'South Carolina' => 'SC',
-        'South Dakota' => 'SD', 'Tennessee' => 'TN', 'Texas' => 'TX', 'Utah' => 'UT', 'Vermont' => 'VT',
-        'Virginia' => 'VA', 'Washington' => 'WA', 'West Virginia' => 'WV', 'Wisconsin' => 'WI', 'Wyoming' => 'WY',
+        'Alabama' => 'AL',
+        'Alaska' => 'AK',
+        'Arizona' => 'AZ',
+        'Arkansas' => 'AR',
+        'California' => 'CA',
+        'Colorado' => 'CO',
+        'Connecticut' => 'CT',
+        'Delaware' => 'DE',
+        'Florida' => 'FL',
+        'Georgia' => 'GA',
+        'Hawaii' => 'HI',
+        'Idaho' => 'ID',
+        'Illinois' => 'IL',
+        'Indiana' => 'IN',
+        'Iowa' => 'IA',
+        'Kansas' => 'KS',
+        'Kentucky' => 'KY',
+        'Louisiana' => 'LA',
+        'Maine' => 'ME',
+        'Maryland' => 'MD',
+        'Massachusetts' => 'MA',
+        'Michigan' => 'MI',
+        'Minnesota' => 'MN',
+        'Mississippi' => 'MS',
+        'Missouri' => 'MO',
+        'Montana' => 'MT',
+        'Nebraska' => 'NE',
+        'Nevada' => 'NV',
+        'New Hampshire' => 'NH',
+        'New Jersey' => 'NJ',
+        'New Mexico' => 'NM',
+        'New York' => 'NY',
+        'North Carolina' => 'NC',
+        'North Dakota' => 'ND',
+        'Ohio' => 'OH',
+        'Oklahoma' => 'OK',
+        'Oregon' => 'OR',
+        'Pennsylvania' => 'PA',
+        'Rhode Island' => 'RI',
+        'South Carolina' => 'SC',
+        'South Dakota' => 'SD',
+        'Tennessee' => 'TN',
+        'Texas' => 'TX',
+        'Utah' => 'UT',
+        'Vermont' => 'VT',
+        'Virginia' => 'VA',
+        'Washington' => 'WA',
+        'West Virginia' => 'WV',
+        'Wisconsin' => 'WI',
+        'Wyoming' => 'WY',
         'District Of Columbia' => 'DC',
     ];
 

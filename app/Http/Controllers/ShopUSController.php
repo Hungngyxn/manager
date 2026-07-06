@@ -206,6 +206,7 @@ class ShopUSController extends Controller
 		$order->print_provider = $this->providerKeyForPrinter($validated['printer']);
 
 		$order->save();
+		$order->update(['print_status' => ShopUs::PRINT_WORKING]);
 
 		return redirect()->back()->with('success', 'Print info saved successfully.');
 	}

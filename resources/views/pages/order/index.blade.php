@@ -123,17 +123,18 @@
                                             'label_link' => $order->label_link ?? '',
                                             'products' => $modalProducts,
                                             'print' => $order->print ?? null,
-                                        ];
+                                        ]; 
 
                                         $printStatus = $order->print_status ?? 'not_sent';
                                         $hasPrintSetup = !empty($order->print);
                                         $isSending = $printStatus === 'sending';
-                                        $printBadge = [
-                                            'sent' => ['bg-success', 'Sent'],
-                                            'sending' => ['bg-warning text-dark', 'Sending…'],
-                                            'pending_payment' => ['bg-info text-dark', 'Pending payment'],
-                                            'failed' => ['bg-danger', 'Failed'],
-                                        ][$printStatus] ?? null;
+                                        $printBadge =
+                                            [
+                                                'Sent' => ['bg-success', 'Sent'],
+                                                'Working' => ['bg-warning text-dark', 'Working'],
+                                                'Not Sent' => ['bg-info text-dark', 'New'],
+                                                'Failed' => ['bg-danger', 'Failed'],
+                                            ][$printStatus] ?? null;
                                     @endphp
 
                                     <div class="dropdown">
@@ -149,9 +150,13 @@
                                                     action="{{ route('orders.send-to-printer', $order->order_id) }}"
                                                     class="m-0 form-send-to-printer">
                                                     @csrf
-                                                    <button type="submit" class="dropdown-item btn-send-to-printer"
-                                                        @if ($isSending || !$hasPrintSetup) disabled @endif
-                                                        @if (!$hasPrintSetup) title="Cần lưu Print setup trước" @endif>
+                                                    <button type="submit" class="dropdown-item btn-send-to-printer">
+                                                        @if ($isSending || !$hasPrintSetup)
+                                                            disabled
+                                                        @endif
+                                                        @if (!$hasPrintSetup)
+                                                            title="Cần lưu Print setup trước"
+                                                        @endif
                                                         <i class="bi bi-printer-fill me-2"></i> Send to printer
                                                     </button>
                                                 </form>
@@ -165,7 +170,8 @@
                                             </li>
                                             <li><a class="dropdown-item" href="#"><i
                                                         class="bi bi-arrow-repeat me-2"></i> Re-update info</a></li>
-                                            <li><a class="dropdown-item" href="#"><i class="bi bi-tag-fill me-2"></i>
+                                            <li><a class="dropdown-item" href="#"><i
+                                                        class="bi bi-tag-fill me-2"></i>
                                                     Buy label</a></li>
                                         </ul>
                                     </div>
@@ -322,7 +328,8 @@
                             <select id="modalPrinter" name="printer" class="form-select form-select-sm" required>
                                 <option value="">-Select printer-</option>
                                 @foreach (config('printing.printers', []) as $value => $printer)
-                                    <option value="{{ $value }}" {{ empty($printer['enabled']) ? 'disabled' : '' }}>
+                                    <option value="{{ $value }}"
+                                        {{ empty($printer['enabled']) ? 'disabled' : '' }}>
                                         {{ $printer['label'] }}</option>
                                 @endforeach
                             </select>
@@ -363,7 +370,7 @@
                             toast: true,
                             position: 'top-end',
                             icon: '{{ $flashIsError ? 'error' : 'success' }}',
-                            title: @json(session('error') ?? session('status') ?? session('success')),
+                            title: @json(session('error') ?? (session('status') ?? session('success'))),
                             showConfirmButton: false,
                             timer: 4000,
                             timerProgressBar: true,
@@ -383,18 +390,25 @@
                     btn.addEventListener('click', function() {
                         this.classList.add('disabled');
                         this.setAttribute('aria-disabled', 'true');
-                        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+                        this.innerHTML =
+                            '<span class="spinner-border spinner-border-sm"></span> Processing...';
                     });
                 });
 
                 // Send to printer: khoá nút ngay khi submit để tránh bấm nhiều lần
-                document.querySelectorAll('.form-send-to-printer').forEach(form => {
-                    form.addEventListener('submit', function() {
-                        const btn = this.querySelector('.btn-send-to-printer');
-                        if (btn) {
-                            btn.setAttribute('disabled', 'disabled');
-                            btn.innerHTML =
+                document.querySelectorAll('.btn-send-to-printer').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        // Tìm form cha gần nhất của nút này
+                        const form = this.closest('.form-send-to-printer');
+
+                        if (form) {
+                            // Thay đổi trạng thái nút ngay lập tức
+                            this.setAttribute('disabled', 'disabled');
+                            this.innerHTML =
                                 '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+
+                            // Tiến hành submit form
+                            form.submit();
                         }
                     });
                 });
@@ -402,7 +416,8 @@
                 // Checkbox Select All
                 const checkAll = document.getElementById('checkAll');
                 checkAll?.addEventListener('click', e => {
-                    document.querySelectorAll('input[name="ids[]"]').forEach(cb => cb.checked = e.target.checked);
+                    document.querySelectorAll('input[name="ids[]"]').forEach(cb => cb.checked = e.target
+                        .checked);
                 });
 
                 // Export Selected
@@ -441,7 +456,8 @@
                         const print = orderData.print || {};
 
                         // Order-level: nạp lại giá trị đã lưu (fallback label_link cho shipping url).
-                        printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url || orderData
+                        printModal.querySelector('#modalShippingLabel').value = print.shipping_label_url ||
+                            orderData
                             .label_link || '';
                         const printerEl = printModal.querySelector('#modalPrinter');
                         if (printerEl) {
@@ -455,7 +471,8 @@
                         if (shipmentEl && print.shipment) shipmentEl.value = print.shipment;
 
                         const form = printModal.querySelector('#printInfoForm');
-                        form.action = `{{ url('orders') }}/${encodeURIComponent(orderData.order_id)}/save-print-info`;
+                        form.action =
+                            `{{ url('orders') }}/${encodeURIComponent(orderData.order_id)}/save-print-info`;
 
                         const container = printModal.querySelector('#modalProductsContainer');
                         container.innerHTML = '';
@@ -488,7 +505,8 @@
                                 const slug = pos.toLowerCase().replace(/ /g, '_');
                                 const inputId = `pos_${index}_${slug}`;
                                 // Nếu đã có dữ liệu lưu thì theo dữ liệu đó, chưa có thì mặc định "Front".
-                                const checked = (savedPositions ? savedPositions.includes(pos) : pos ===
+                                const checked = (savedPositions ? savedPositions.includes(pos) :
+                                    pos ===
                                     'Front') ? 'checked' : '';
 
                                 positionsHtml += `
