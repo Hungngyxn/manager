@@ -34,7 +34,7 @@ class TikTokService
         if (!$token) {
             throw new \Exception("Không tìm thấy token cho user $shop->shop_name");
         }
-        if (1>0) {
+        if (1 > 0) {
             $client = $this->client();
             try {
                 $newToken = $client->auth()->refreshNewToken($token->refresh_token);
@@ -355,8 +355,38 @@ class TikTokService
         }
     }
 
-    public function getAllPaymentsUpToNow($client): array
+    public function getStatementsUpToNow($client): array
     {
+        $allStatements = [];
+        $timeLt = time();
+        $nextPageToken = null;
+
+        do {
+            $params = [
+                'create_time_lt' => $timeLt,
+                'page_size' => 100,
+                'sort_field' => 'statement_time',
+            ];
+
+            if ($nextPageToken) {
+                $params['page_token'] = $nextPageToken;
+            }
+
+            $response = $client->Finance->getStatements($params);
+
+            $statements = $response['statements'] ?? [];
+            $allStatements = array_merge($allStatements, $statements);
+
+            $nextPageToken = $response['next_page_token'] ?? null;
+
+        } while (!empty($nextPageToken));
+
+        return $allStatements;
+    }
+
+    public function getPayoutsUpToNow($client): array
+    {
+        $allPayouts = [];
         $timeLt = time();
 
         $params = [
@@ -365,12 +395,12 @@ class TikTokService
             'sort_field' => 'create_time',
         ];
 
+        // Gọi API thông qua SDK (Hãy đảm bảo đối tượng SDK tương ứng chuẩn của bạn)
         $response = $client->Finance->getPayments($params);
 
-        $payments = $response['payments'] ?? [];
+        $payouts = $response['payments'] ?? [];
 
-
-        return $payments;
+        return $payouts;
     }
 
 }

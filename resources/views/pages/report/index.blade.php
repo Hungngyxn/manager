@@ -13,7 +13,7 @@
         {{-- KHU VỰC THẺ BÁO CÁO (Theo hình ảnh đính kèm) --}}
         <div class="row mb-4">
             <div class="col-md-4 mb-3">
-                <a href="#"
+                <a href="{{ route('report.order') }}"
                     class="btn btn-outline-primary w-100 p-3 text-start shadow-sm d-flex align-items-center h-100 transition-all">
                     <div class="me-3 p-2 bg-light text-primary rounded border">
                         <i class="fas fa-shopping-cart fa-lg"></i>
@@ -28,7 +28,7 @@
             </div>
 
             <div class="col-md-4 mb-3">
-                <a href="#"
+                <a href="{{ route('report.finance') }}"
                     class="btn btn-outline-primary w-100 p-3 text-start shadow-sm d-flex align-items-center h-100 transition-all">
                     <div class="me-3 p-2 bg-light text-primary rounded border px-3">
                         <i class="fas fa-dollar-sign fa-lg"></i>

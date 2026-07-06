@@ -1,10 +1,14 @@
 <?php
 
+use App\Http\Controllers\Finance\TiktokPayoutController;
+use App\Http\Controllers\Finance\TiktokStatementController;
 use App\Http\Controllers\AdsFeeController;
 use App\Http\Controllers\BonusController;
 use App\Http\Controllers\ErrorLogController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductListController;
+use App\Http\Controllers\Report\FinanceReportController;
+use App\Http\Controllers\Report\OrderReportController;
 use App\Http\Controllers\Report\ReportController;
 use App\Http\Controllers\Report\ReportSellerController;
 use App\Http\Controllers\SellerHasShopController;
@@ -153,6 +157,10 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
         Route::get('/update-ads', [ReportSellerController::class, 'initDailyReports'])->name('update');
         //seller
         Route::get('/seller', [ReportSellerController::class, 'index'])->name('seller');
+        //order
+        Route::get('/order', [OrderReportController::class, 'index'])->name('order');
+        //finance
+        Route::get('/finance', [FinanceReportController::class, 'index'])->name('finance');
 
     });
 
@@ -177,10 +185,12 @@ Route::middleware(['auth', 'check.access', 'check.status'])->group(function () {
             ->name('export.selected');
     });
 
-    Route::prefix('log')->name('log.')->group(function () {
-        Route::get('/', [ErrorLogController::class, 'index'])->name('index');
-        Route::get('/create', [ErrorLogController::class, 'create'])->name('create');
-        Route::post('/', [ErrorLogController::class, 'store'])->name('store');
+    //finance
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::get('/statement', [TiktokStatementController::class, 'index'])->name('statement');
+        Route::get('/syncStatements', [TiktokStatementController::class, 'syncStatements'])->name('syncStatements');
+        Route::get('/payout', [TiktokPayoutController::class, 'index'])->name('payout');
+        Route::get('/syncPayouts', [TiktokPayoutController::class, 'syncPayouts'])->name('syncPayouts');
     });
 
     Route::prefix('bonus')->name('bonus.')->group(function () {
